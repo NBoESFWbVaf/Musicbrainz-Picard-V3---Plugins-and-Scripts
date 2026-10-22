@@ -1,4 +1,4 @@
-title: Eigenes Skript (1)
+title: 02 Track und CD Nummern
 script_language_version: '1.1'
 script: |
   # CD und Tracknummern zwei- bzw. dreistellig

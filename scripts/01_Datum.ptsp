@@ -1,4 +1,4 @@
-title: Datum vierstellig
+title: 01 Datum
 script_language_version: '1.1'
 script: "# --- originaldate UND releasedate: immer vorhanden, immer yyyy-mm-dd ---\n\
   \n# 1) Beide leer -> beide aus date (yyyy) + aktueller Monat/Tag\n$if($not($or(%originaldate%,%releasedate%)),\n\

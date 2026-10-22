@@ -8,7 +8,7 @@ description = "Lyrics fetcher using the public lrclib.net API. Prefers synced ly
 api = ["3.0"]
 
 # Optional fields
-version = "0.0.5"
+version = "0.1.0"
 authors = ["Deniz Engin <dev@dilbil.im>"]
 maintainers = ["Deniz Engin <dev@dilbil.im>"]
 license = "GPL-3.0-or-later"
@@ -25,6 +25,13 @@ lrclib.net project, which requires no registration or API keys!
 
 The API provides synced lyrics and unsynced ones as a fallback. Synced lyrics
 are prioritized.
+
+**Options** (Options → Plugins → Picard Sözler):
+
+- Skip lyrics written in Asian scripts. The blocked script groups
+  (Chinese/Japanese, Korean, Southeast Asian, Indian) can be toggled
+  individually.
+- Optionally delete blocked lyrics left over in files when saving.
 
 **Note:** The lrclib project does not utilize MusicBrainz IDs, so the results
 may not be as accurate. It is recommended to glimpse over your lyrics when

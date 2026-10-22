@@ -14,38 +14,68 @@ plugin API v3. All plugin metadata lives in MANIFEST.toml; the v2
 PLUGIN_* constants are no longer used.
 """
 
-from functools import partial
+from functools import lru_cache, partial
 import re
 
+from PyQt6 import QtWidgets
 
-# Filter: Lyrics, die Schriftzeichen asiatischer Schriften enthalten
-# (Chinesisch, Japanisch, Koreanisch, Thai, Khmer, indische Schriften usw.),
-# werden verworfen, da lrclib.net hier oft falsche Treffer liefert.
-# Auf False setzen, um den Filter zu deaktivieren.
-SKIP_ASIAN_LYRICS = True
-
-# Deckt alle größeren asiatischen Schriftsysteme ab
-_ASIAN_RE = re.compile(
-    '[\u0900-\u109f'          # indische Schriften (Devanagari, Tamil u. a.), Thai, Lao, Tibetisch, Myanmar
-    '\u1780-\u17ff'          # Khmer
-    '\u1800-\u18af'          # Mongolisch
-    '\u2e80-\u2eff'          # CJK-Radikale (Supplement)
-    '\u3000-\u30ff'          # CJK-Symbole, Hiragana & Katakana
-    '\u3130-\u318f'          # Hangul Compatibility Jamo
-    '\u3400-\u4dbf'          # CJK-Erweiterung A
-    '\u4e00-\u9fff'          # CJK-Ideogramme (Hauptblock, Chinesisch)
-    '\ua960-\ua97f'          # Hangul Jamo Extended-A
-    '\uac00-\ud7af'          # Hangul (Koreanisch)
-    '\uf900-\ufaff'          # CJK-Kompatibilitätsideogramme
-    '\uff00-\uff60'          # Fullwidth-Formen (Latein, Zahlen, Satzzeichen)
-    '\U00020000-\U0002f8ff'  # CJK-Erweiterungen B–F
-    ']'
-)
+from picard.plugin3.api import OptionsPage
 
 
-def has_asian_script(text):
-    """Return True if the text contains characters from Asian scripts."""
-    return bool(_ASIAN_RE.search(text))
+# Plugin-Optionen mit Defaults (werden in enable() registriert).
+PLUGIN_OPTIONS = {
+    'skip_asian_lyrics': True,
+    'block_cjk': True,
+    'block_hangul': True,
+    'block_sea': True,
+    'block_indic': True,
+    'clear_blocked_lyrics': False,
+}
+
+# Unicode-Bereiche der Schriftgruppen, die in den Optionen blockierbar sind.
+SCRIPT_RANGES = {
+    'block_cjk': (
+        (0x2E80, 0x2EFF),     # CJK-Radikale (Supplement)
+        (0x3000, 0x30FF),     # CJK-Symbole, Hiragana & Katakana
+        (0x3400, 0x4DBF),     # CJK-Erweiterung A
+        (0x4E00, 0x9FFF),     # CJK-Ideogramme (Hauptblock, Chinesisch)
+        (0xF900, 0xFAFF),     # CJK-Kompatibilitätsideogramme
+        (0xFF00, 0xFF60),     # Fullwidth-Formen (Latein, Zahlen, Satzzeichen)
+        (0x20000, 0x2F8FF),   # CJK-Erweiterungen B–F
+    ),
+    'block_hangul': (
+        (0x3130, 0x318F),     # Hangul Compatibility Jamo
+        (0xA960, 0xA97F),     # Hangul Jamo Extended-A
+        (0xAC00, 0xD7AF),     # Hangul (Koreanisch)
+    ),
+    'block_sea': (
+        (0x0E00, 0x109F),     # Thai, Lao, Tibetisch, Myanmar
+        (0x1780, 0x17FF),     # Khmer
+        (0x1800, 0x18AF),     # Mongolisch
+    ),
+    'block_indic': (
+        (0x0900, 0x0DFF),     # indische Schriften (Devanagari, Tamil, Sinhala u. a.)
+    ),
+}
+
+
+@lru_cache(maxsize=8)
+def _build_re(blocked_groups):
+    """Build a regex matching any character of the blocked script groups."""
+    ranges = [r for name in blocked_groups for r in SCRIPT_RANGES[name]]
+    pattern = '[' + ''.join(f'{chr(start)}-{chr(end)}' for start, end in ranges) + ']'
+    return re.compile(pattern)
+
+
+def has_blocked_script(api, text):
+    """Return True if the text contains a character of a blocked script."""
+    config = api.plugin_config
+    if not config.get('skip_asian_lyrics', True):
+        return False
+    blocked = tuple(name for name in SCRIPT_RANGES if config.get(name, True))
+    if not blocked:
+        return False
+    return bool(_build_re(blocked).search(text))
 
 
 def process_response(api, album, metadata, task_id, data, reply, error):
@@ -64,15 +94,15 @@ def process_response(api, album, metadata, task_id, data, reply, error):
             logger.debug("instrumental track; skipping")
             lyrics = None
         else:
-            # Fallbacks to plain, ie, unsynced lyrics. With SKIP_ASIAN_LYRICS
-            # enabled, candidates containing Asian script characters are
-            # skipped and the next candidate is tried instead.
+            # Fallbacks to plain, ie, unsynced lyrics. Candidates containing
+            # blocked scripts (see plugin options) are skipped and the next
+            # candidate is tried instead.
             lyrics = None
             for candidate in (data.get("syncedLyrics"), data.get("plainLyrics")):
                 if not candidate:
                     continue
-                if SKIP_ASIAN_LYRICS and has_asian_script(candidate):
-                    logger.debug("skipping lyrics candidate: contains Asian script characters")
+                if has_blocked_script(api, candidate):
+                    logger.debug("skipping lyrics candidate: contains blocked script characters")
                     continue
                 lyrics = candidate
                 break
@@ -118,11 +148,84 @@ def process_track(api, track, metadata, track_node, release_node=None):
     )
 
 
+def clear_blocked_lyrics(api, file):
+    """Pre-save hook: delete blocked lyrics left over in the file's tags."""
+    if not api.plugin_config.get('clear_blocked_lyrics', False):
+        return
+    values = file.metadata.getall('lyrics')
+    if any(has_blocked_script(api, value) for value in values):
+        # Markiert das Tag als gelöscht – Picard entfernt es beim Speichern.
+        del file.metadata['lyrics']
+        api.logger.debug("removing existing blocked lyrics from %r", file.filename)
+
+
+class SozlerOptionsPage(OptionsPage):
+    """Options page: Options → Plugins → Picard Sözler."""
+
+    NAME = "picard_sözler_v3"
+    TITLE = "Picard Sözler"
+    PARENT = "plugins"
+
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QVBoxLayout(self)
+
+        filter_group = QtWidgets.QGroupBox("Lyrics filter")
+        filter_layout = QtWidgets.QVBoxLayout(filter_group)
+        self.skip_asian = QtWidgets.QCheckBox("Skip lyrics written in Asian scripts")
+        self.block_cjk = QtWidgets.QCheckBox("Chinese / Japanese (CJK characters) — 汉字 / カナ")
+        self.block_hangul = QtWidgets.QCheckBox("Korean (Hangul) — 한글")
+        self.block_sea = QtWidgets.QCheckBox("Thai, Lao, Khmer, Tibetan, Burmese, Mongolian")
+        self.block_indic = QtWidgets.QCheckBox("Indian scripts (Devanagari, Tamil, Sinhala, …)")
+        for checkbox in (self.skip_asian, self.block_cjk, self.block_hangul,
+                         self.block_sea, self.block_indic):
+            filter_layout.addWidget(checkbox)
+        self.skip_asian.toggled.connect(self._update_enabled)
+        layout.addWidget(filter_group)
+
+        self.clear_existing = QtWidgets.QCheckBox(
+            "Delete blocked lyrics left over in files when saving")
+        layout.addWidget(self.clear_existing)
+
+        layout.addStretch()
+
+    def _update_enabled(self):
+        enabled = self.skip_asian.isChecked()
+        for checkbox in (self.block_cjk, self.block_hangul,
+                         self.block_sea, self.block_indic):
+            checkbox.setEnabled(enabled)
+
+    def load(self):
+        config = self.api.plugin_config
+        self.skip_asian.setChecked(config['skip_asian_lyrics'])
+        self.block_cjk.setChecked(config['block_cjk'])
+        self.block_hangul.setChecked(config['block_hangul'])
+        self.block_sea.setChecked(config['block_sea'])
+        self.block_indic.setChecked(config['block_indic'])
+        self.clear_existing.setChecked(config['clear_blocked_lyrics'])
+        self._update_enabled()
+
+    def save(self):
+        config = self.api.plugin_config
+        config['skip_asian_lyrics'] = self.skip_asian.isChecked()
+        config['block_cjk'] = self.block_cjk.isChecked()
+        config['block_hangul'] = self.block_hangul.isChecked()
+        config['block_sea'] = self.block_sea.isChecked()
+        config['block_indic'] = self.block_indic.isChecked()
+        config['clear_blocked_lyrics'] = self.clear_existing.isChecked()
+
+
 def enable(api):
-    """Called when the plugin is enabled: register all hooks here."""
+    """Called when the plugin is enabled: register options and hooks."""
     # Loggt die tatsächlich laufende Version (Gut-zu-wissen bei Update-Problemen)
     api.logger.info("picard_sözler_v3 %s enabled", api.get_plugin_version())
+
+    for option, default in PLUGIN_OPTIONS.items():
+        api.plugin_config.register_option(option, default)
+
     api.register_track_metadata_processor(process_track)
+    api.register_file_pre_save_processor(clear_blocked_lyrics)
+    api.register_options_page(SozlerOptionsPage)
 
 
 def disable():

@@ -15,6 +15,31 @@ PLUGIN_* constants are no longer used.
 """
 
 from functools import partial
+import re
+
+
+# Filter: Lyrics, die CJK-Schriftzeichen (Chinesisch, Japanisch, Koreanisch)
+# enthalten, werden verworfen, da lrclib.net hier oft falsche Treffer liefert.
+# Auf False setzen, um den Filter zu deaktivieren.
+SKIP_CJK_LYRICS = True
+
+# deckt CJK-Radikale, Kana, CJK-Erweiterung A, die CJK-Ideogramme (Hauptblock),
+# Hangul, Kompatibilitätsideogramme sowie die Erweiterungen B–F ab
+_CJK_RE = re.compile(
+    '[\u2e80-\u2eff'          # CJK-Radikale (Supplement)
+    '\u3000-\u30ff'          # CJK-Symbole, Hiragana & Katakana
+    '\u3400-\u4dbf'          # CJK-Erweiterung A
+    '\u4e00-\u9fff'          # CJK-Ideogramme (Hauptblock, Chinesisch)
+    '\uac00-\ud7af'          # Hangul (Koreanisch)
+    '\uf900-\ufaff'          # CJK-Kompatibilitätsideogramme
+    '\U00020000-\U0002f8ff'  # CJK-Erweiterungen B–F
+    ']'
+)
+
+
+def has_cjk(text):
+    """Return True if the text contains any CJK character."""
+    return bool(_CJK_RE.search(text))
 
 
 def process_response(api, album, metadata, task_id, data, reply, error):
@@ -33,8 +58,18 @@ def process_response(api, album, metadata, task_id, data, reply, error):
             logger.debug("instrumental track; skipping")
             lyrics = None
         else:
-            # Fallbacks to plain, ie, unsynced lyrics.
-            lyrics = data.get("syncedLyrics") or data.get("plainLyrics")
+            # Fallbacks to plain, ie, unsynced lyrics. With SKIP_CJK_LYRICS
+            # enabled, candidates containing CJK characters are skipped and
+            # the next candidate is tried instead.
+            lyrics = None
+            for candidate in (data.get("syncedLyrics"), data.get("plainLyrics")):
+                if not candidate:
+                    continue
+                if SKIP_CJK_LYRICS and has_cjk(candidate):
+                    logger.debug("skipping lyrics candidate: contains CJK characters")
+                    continue
+                lyrics = candidate
+                break
 
         if lyrics is not None:
             metadata["lyrics"] = lyrics

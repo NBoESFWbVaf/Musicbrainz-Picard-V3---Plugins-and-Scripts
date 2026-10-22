@@ -67,12 +67,22 @@ def _build_re(blocked_groups):
     return re.compile(pattern)
 
 
+def _get_option(config, name, default):
+    """Read a plugin option, returning default if unset or not registered.
+
+    Picard's ConfigSection has no get() method and __getitem__ returns
+    None for unregistered options, so wrap the access here.
+    """
+    value = config[name]
+    return default if value is None else value
+
+
 def has_blocked_script(api, text):
     """Return True if the text contains a character of a blocked script."""
     config = api.plugin_config
-    if not config.get('skip_asian_lyrics', True):
+    if not _get_option(config, 'skip_asian_lyrics', True):
         return False
-    blocked = tuple(name for name in SCRIPT_RANGES if config.get(name, True))
+    blocked = tuple(name for name in SCRIPT_RANGES if _get_option(config, name, True))
     if not blocked:
         return False
     return bool(_build_re(blocked).search(text))
@@ -110,7 +120,7 @@ def process_response(api, album, metadata, task_id, data, reply, error):
         if lyrics is not None:
             metadata["lyrics"] = lyrics
     except AttributeError:
-        logger.error("api malformed response: %r", data)
+        logger.exception("api malformed response: %r", data)
     finally:
         api.complete_album_task(album, task_id)
 
@@ -150,7 +160,7 @@ def process_track(api, track, metadata, track_node, release_node=None):
 
 def clear_blocked_lyrics(api, file):
     """Pre-save hook: delete blocked lyrics left over in the file's tags."""
-    if not api.plugin_config.get('clear_blocked_lyrics', False):
+    if not _get_option(api.plugin_config, 'clear_blocked_lyrics', False):
         return
     values = file.metadata.getall('lyrics')
     if any(has_blocked_script(api, value) for value in values):
@@ -197,12 +207,12 @@ class SozlerOptionsPage(OptionsPage):
 
     def load(self):
         config = self.api.plugin_config
-        self.skip_asian.setChecked(config['skip_asian_lyrics'])
-        self.block_cjk.setChecked(config['block_cjk'])
-        self.block_hangul.setChecked(config['block_hangul'])
-        self.block_sea.setChecked(config['block_sea'])
-        self.block_indic.setChecked(config['block_indic'])
-        self.clear_existing.setChecked(config['clear_blocked_lyrics'])
+        self.skip_asian.setChecked(_get_option(config, 'skip_asian_lyrics', True))
+        self.block_cjk.setChecked(_get_option(config, 'block_cjk', True))
+        self.block_hangul.setChecked(_get_option(config, 'block_hangul', True))
+        self.block_sea.setChecked(_get_option(config, 'block_sea', True))
+        self.block_indic.setChecked(_get_option(config, 'block_indic', True))
+        self.clear_existing.setChecked(_get_option(config, 'clear_blocked_lyrics', False))
         self._update_enabled()
 
     def save(self):

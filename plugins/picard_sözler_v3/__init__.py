@@ -18,28 +18,34 @@ from functools import partial
 import re
 
 
-# Filter: Lyrics, die CJK-Schriftzeichen (Chinesisch, Japanisch, Koreanisch)
-# enthalten, werden verworfen, da lrclib.net hier oft falsche Treffer liefert.
+# Filter: Lyrics, die Schriftzeichen asiatischer Schriften enthalten
+# (Chinesisch, Japanisch, Koreanisch, Thai, Khmer, indische Schriften usw.),
+# werden verworfen, da lrclib.net hier oft falsche Treffer liefert.
 # Auf False setzen, um den Filter zu deaktivieren.
-SKIP_CJK_LYRICS = True
+SKIP_ASIAN_LYRICS = True
 
-# deckt CJK-Radikale, Kana, CJK-Erweiterung A, die CJK-Ideogramme (Hauptblock),
-# Hangul, Kompatibilitätsideogramme sowie die Erweiterungen B–F ab
-_CJK_RE = re.compile(
-    '[\u2e80-\u2eff'          # CJK-Radikale (Supplement)
+# Deckt alle größeren asiatischen Schriftsysteme ab
+_ASIAN_RE = re.compile(
+    '[\u0900-\u109f'          # indische Schriften (Devanagari, Tamil u. a.), Thai, Lao, Tibetisch, Myanmar
+    '\u1780-\u17ff'          # Khmer
+    '\u1800-\u18af'          # Mongolisch
+    '\u2e80-\u2eff'          # CJK-Radikale (Supplement)
     '\u3000-\u30ff'          # CJK-Symbole, Hiragana & Katakana
+    '\u3130-\u318f'          # Hangul Compatibility Jamo
     '\u3400-\u4dbf'          # CJK-Erweiterung A
     '\u4e00-\u9fff'          # CJK-Ideogramme (Hauptblock, Chinesisch)
+    '\ua960-\ua97f'          # Hangul Jamo Extended-A
     '\uac00-\ud7af'          # Hangul (Koreanisch)
     '\uf900-\ufaff'          # CJK-Kompatibilitätsideogramme
+    '\uff00-\uff60'          # Fullwidth-Formen (Latein, Zahlen, Satzzeichen)
     '\U00020000-\U0002f8ff'  # CJK-Erweiterungen B–F
     ']'
 )
 
 
-def has_cjk(text):
-    """Return True if the text contains any CJK character."""
-    return bool(_CJK_RE.search(text))
+def has_asian_script(text):
+    """Return True if the text contains characters from Asian scripts."""
+    return bool(_ASIAN_RE.search(text))
 
 
 def process_response(api, album, metadata, task_id, data, reply, error):
@@ -58,15 +64,15 @@ def process_response(api, album, metadata, task_id, data, reply, error):
             logger.debug("instrumental track; skipping")
             lyrics = None
         else:
-            # Fallbacks to plain, ie, unsynced lyrics. With SKIP_CJK_LYRICS
-            # enabled, candidates containing CJK characters are skipped and
-            # the next candidate is tried instead.
+            # Fallbacks to plain, ie, unsynced lyrics. With SKIP_ASIAN_LYRICS
+            # enabled, candidates containing Asian script characters are
+            # skipped and the next candidate is tried instead.
             lyrics = None
             for candidate in (data.get("syncedLyrics"), data.get("plainLyrics")):
                 if not candidate:
                     continue
-                if SKIP_CJK_LYRICS and has_cjk(candidate):
-                    logger.debug("skipping lyrics candidate: contains CJK characters")
+                if SKIP_ASIAN_LYRICS and has_asian_script(candidate):
+                    logger.debug("skipping lyrics candidate: contains Asian script characters")
                     continue
                 lyrics = candidate
                 break
@@ -114,6 +120,8 @@ def process_track(api, track, metadata, track_node, release_node=None):
 
 def enable(api):
     """Called when the plugin is enabled: register all hooks here."""
+    # Loggt die tatsächlich laufende Version (Gut-zu-wissen bei Update-Problemen)
+    api.logger.info("picard_sözler_v3 %s enabled", api.get_plugin_version())
     api.register_track_metadata_processor(process_track)
 
 

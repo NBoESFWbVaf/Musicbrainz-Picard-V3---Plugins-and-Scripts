@@ -1,0 +1,15 @@
+title: Datum vierstellig
+script_language_version: '1.1'
+script: "# --- originaldate UND releasedate: immer vorhanden, immer yyyy-mm-dd ---\n\
+  \n# 1) Beide leer -> beide aus date (yyyy) + aktueller Monat/Tag\n$if($not($or(%originaldate%,%releasedate%)),\n\
+  \  $set(originaldate,$left(%date%,4)-$datetime(\\%m-\\%d))\n  $set(releasedate,$left(%date%,4)-$datetime(\\\
+  %m-\\%d))\n)\n\n# 2) Nur eines leer -> aus dem jeweils anderen f\xFCllen\n$if(%originaldate%,,$set(originaldate,%releasedate%))\n\
+  $if(%releasedate%,,$set(releasedate,%originaldate%))\n\n# 3) originaldate normieren\
+  \ (Zeitanteile abschneiden, yyyy bzw. yyyy-mm auff\xFCllen)\n$if(%originaldate%,\n\
+  \  $set(originaldate,$substr(%originaldate%,0,10))\n  $if($eq($len(%originaldate%),4),$set(originaldate,%originaldate%-$datetime(\\\
+  %m-\\%d)))\n  $if($eq($len(%originaldate%),7),$set(originaldate,%originaldate%-$datetime(\\\
+  %d)))\n)\n\n# 4) releasedate normieren\n$if(%releasedate%,\n  $set(releasedate,$substr(%releasedate%,0,10))\n\
+  \  $if($eq($len(%releasedate%),4),$set(releasedate,%releasedate%-$datetime(\\%m-\\\
+  %d)))\n  $if($eq($len(%releasedate%),7),$set(releasedate,%releasedate%-$datetime(\\\
+  %d)))\n)\n\n# 5) date = immer nur das Jahr (der Erstver\xF6ffentlichung)\n$if(%originaldate%,$set(date,$left(%originaldate%,4)))\n"
+id: 421cb0a4-96ca-47a3-b5ec-cd6c4d5e3057

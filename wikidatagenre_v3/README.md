@@ -1,6 +1,6 @@
 # Wikidata Genre V3
 
-Picard 3.x plugin port based on the legacy **Wikidata Genre** plugin by Daniel Sobey and Sambhav Kothari.
+Picard 3.x plugin port based on the legacy **Wikidata Genre** plugin by Daniel Sobey and Sambhav Kothari. It's vibecoded, use it careful.
 
 ## Files
 

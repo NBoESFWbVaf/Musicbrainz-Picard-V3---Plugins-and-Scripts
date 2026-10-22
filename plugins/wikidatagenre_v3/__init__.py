@@ -47,7 +47,7 @@ from picard.album_requests import TaskType
 from picard.plugin3.api import OptionsPage
 
 
-PLUGIN_VERSION = "3.4.0"
+PLUGIN_VERSION = "3.4.1"
 WIKIDATA_BASE = "https://www.wikidata.org/wiki/Special:EntityData/"
 MB_BASE = "https://musicbrainz.org/ws/2/"
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -340,6 +340,10 @@ def _handle_musicbrainz(api, album, task_id, item_key, cache_key, entity_type, d
             api.logger.exception("Wikidata Genre: failed to parse MusicBrainz response")
             return
         if not urls:
+            api.logger.info(
+                "Wikidata Genre V3: %s has no Wikidata relation in MusicBrainz",
+                cache_key,
+            )
             return
 
         pending["genres"] = set()
@@ -348,6 +352,19 @@ def _handle_musicbrainz(api, album, task_id, item_key, cache_key, entity_type, d
             if index >= len(urls):
                 try:
                     all_genres = sorted(pending["genres"], key=str.casefold)
+                    if all_genres:
+                        # Ergebnis-Log: welche Genres kamen wirklich von
+                        # Wikidata, und für wie viele wartende Tracks?
+                        api.logger.info(
+                            "Wikidata Genre V3: %s received from Wikidata "
+                            "(%d tracks waiting): %s",
+                            cache_key, len(pending["metadata"]), ", ".join(all_genres),
+                        )
+                    else:
+                        api.logger.info(
+                            "Wikidata Genre V3: %s — no usable genres from Wikidata",
+                            cache_key,
+                        )
                     _apply_genres(api, item_key, cache_key, pending, all_genres)
                 except Exception:
                     api.logger.exception("Wikidata Genre: failed writing genres for %s", cache_key)
@@ -445,7 +462,8 @@ def _queue_lookup(api, album, track, metadata, item_id, entity_type):
     delimiter = _setting(api, "genre_delimiter")
     if cache_key in _CACHE:
         api.logger.debug(
-            "Wikidata Genre V3: %s %s served from cache", entity_type, item_id
+            "Wikidata Genre V3: %s %s served from cache: %s",
+            entity_type, item_id, ", ".join(_CACHE[cache_key]),
         )
         _write_genres(metadata, _CACHE[cache_key], delimiter)
         _refresh_track(track)

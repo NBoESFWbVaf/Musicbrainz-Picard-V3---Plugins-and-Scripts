@@ -29,7 +29,7 @@ PLUGIN_OPTIONS = {
     'block_hangul': True,
     'block_sea': True,
     'block_indic': True,
-    'clear_blocked_lyrics': False,
+    'clear_blocked_lyrics': True,
 }
 
 # Unicode-Bereiche der Schriftgruppen, die in den Optionen blockierbar sind.
@@ -160,7 +160,7 @@ def process_track(api, track, metadata, track_node, release_node=None):
 
 def clear_blocked_lyrics(api, file):
     """Pre-save hook: delete blocked lyrics left over in the file's tags."""
-    if not _get_option(api.plugin_config, 'clear_blocked_lyrics', False):
+    if not _get_option(api.plugin_config, 'clear_blocked_lyrics', True):
         return
     values = file.metadata.getall('lyrics')
     if any(has_blocked_script(api, value) for value in values):
@@ -212,7 +212,7 @@ class SozlerOptionsPage(OptionsPage):
         self.block_hangul.setChecked(_get_option(config, 'block_hangul', True))
         self.block_sea.setChecked(_get_option(config, 'block_sea', True))
         self.block_indic.setChecked(_get_option(config, 'block_indic', True))
-        self.clear_existing.setChecked(_get_option(config, 'clear_blocked_lyrics', False))
+        self.clear_existing.setChecked(_get_option(config, 'clear_blocked_lyrics', True))
         self._update_enabled()
 
     def save(self):

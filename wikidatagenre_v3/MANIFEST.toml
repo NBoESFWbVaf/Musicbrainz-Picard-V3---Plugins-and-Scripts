@@ -1,0 +1,8 @@
+uuid = "7d4f0f0a-8d1e-4c0b-9f6a-7e2d3b9a4c31"
+name = "Wikidata Genre V3"
+description = "Adds genre tags from Wikidata relationships for release groups, artists, and works."
+api = ["3.0"]
+authors = ["Daniel Sobey", "Sambhav Kothari", "Community port"]
+license = "WTFPL"
+license_url = "http://www.wtfpl.net/"
+categories = ["metadata"]

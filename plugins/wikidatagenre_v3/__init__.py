@@ -37,6 +37,23 @@ Fetch modes:
   Instead, the context menu action "Fetch Wikidata genres" (available
   on albums and tracks) triggers the lookups on demand. The action also
   works in automatic mode, e.g. to re-fetch genres later.
+
+File propagation (important for the manual mode):
+- Picard saves tags from the linked files' metadata (File.save() copies
+  file.metadata), and the metadata box also shows file.metadata for
+  tracks with linked files — track.metadata alone is neither visible
+  nor saved there.
+- During album loading this is not an issue: the genres are already in
+  track.metadata when Picard runs the tagging scripts in
+  _finalize_loading_album() and then propagates everything into the
+  linked files itself.
+- For manual fetches on an already loaded album the plugin must
+  therefore call Track.update_file_metadata() itself (the same
+  mechanism Picard uses for manual edits in the tag editor). This
+  re-runs the user's tagging scripts on file level and then applies
+  the difference between the track's current metadata and its
+  post-script state — the Wikidata genres end up in file.metadata,
+  visible in the metadata box and included when saving.
 """
 
 from __future__ import annotations
@@ -60,7 +77,7 @@ from picard.plugin3.api import (
 )
 
 
-PLUGIN_VERSION = "3.5.0"
+PLUGIN_VERSION = "3.5.1"
 WIKIDATA_BASE = "https://www.wikidata.org/wiki/Special:EntityData/"
 MB_BASE = "https://musicbrainz.org/ws/2/"
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -316,6 +333,57 @@ def _refresh_track(track):
         pass
 
 
+def _propagate_genres_to_files(api, track):
+    """Propagate genre changes from track.metadata into the linked files.
+
+    Picard saves tags from file.metadata (File.save() copies file.metadata
+    to disk), and the metadata box shows file.metadata for tracks with
+    linked files. Writing genres only to track.metadata is therefore NOT
+    enough for manual fetches on an already loaded album: the genres would
+    be invisible in the UI and would never reach the saved files.
+
+    During album loading Picard handles the propagation itself (the tagging
+    scripts run in _finalize_loading_album() and push the track metadata
+    into the files afterwards). For manual fetches we replicate this by
+    calling Track.update_file_metadata() ourselves — but only once the
+    album is fully loaded, because during loading the regular pipeline is
+    still responsible and the scripts have not run yet.
+
+    update_file_metadata() re-runs the user's tagging scripts on file
+    level and then applies the difference between the track's current
+    metadata and its post-script state (scripted_metadata) — exactly how
+    Picard handles manual metadata edits in the tag editor.
+    """
+    album = getattr(track, "album", None)
+    if album is None or not getattr(album, "loaded", False):
+        # Album still loading or already removed: the load pipeline
+        # handles the file updates itself — do not interfere.
+        return
+    files = getattr(track, "files", None) or getattr(track, "linked_files", None) or []
+    files = list(files)
+    if not files:
+        # Track without linked files: nothing to propagate.
+        return
+    api.logger.debug(
+        "Wikidata Genre V3: propagating genre changes to %d linked file(s)",
+        len(files),
+    )
+    for file in files:
+        try:
+            track.update_file_metadata(file)
+        except TypeError:
+            # Older Picard signature without a file argument: one call
+            # updates all linked files at once.
+            try:
+                track.update_file_metadata()
+            except Exception:
+                api.logger.exception("Wikidata Genre: failed to update file metadata")
+            return
+        except Exception:
+            api.logger.exception("Wikidata Genre: failed to update file metadata")
+            return
+
+
 def _apply_genres(api, item_key, cache_key, pending, all_genres):
     """Write the collected genres to all waiting metadata objects."""
     if not all_genres:
@@ -337,6 +405,10 @@ def _apply_genres(api, item_key, cache_key, pending, all_genres):
             ):
                 continue
         _write_genres(metadata, all_genres, delimiter)
+        # Push the genres into the linked files as well (no-op during
+        # album loading, where Picard's own pipeline takes over — see
+        # _propagate_genres_to_files).
+        _propagate_genres_to_files(api, track)
         _refresh_track(track)
 
 
@@ -487,6 +559,7 @@ def _queue_lookup(api, album, track, metadata, item_id, entity_type):
             entity_type, item_id, ", ".join(_CACHE[cache_key]),
         )
         _write_genres(metadata, _CACHE[cache_key], delimiter)
+        _propagate_genres_to_files(api, track)
         _refresh_track(track)
         return
 

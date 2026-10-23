@@ -11,7 +11,7 @@ Displays detailed information about the currently shown cover art directly below
 The information is shown embedded in the cover art panel, both for the new cover art (e.g. to be loaded from the internet) and for the original cover art embedded in the file. If more than one image is present, all values are also listed in a table below the summary. The display is updated automatically whenever the selection or the cover art changes.
 """
 api = ["3.0"]
-version = "0.0.3"
+version = "0.0.4"
 authors = ["Mirakuli Teebaum"]
 license = "GPL-2.0-or-later"
 license_url = "https://www.gnu.org/licenses/gpl-2.0.html"

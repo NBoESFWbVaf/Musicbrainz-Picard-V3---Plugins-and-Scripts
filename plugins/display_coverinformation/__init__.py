@@ -56,21 +56,21 @@ def _file_type(image):
 
 
 def _dimensions_text(api, image):
-    """Image dimensions as 'height x width Pixels'."""
+    """Image dimensions as 'heightxwidth px'."""
     width = getattr(image, 'width', None)
     height = getattr(image, 'height', None)
     if width and height:
-        return api.tr('dimensions_value', '{height} x {width} Pixels',
+        return api.tr('dimensions_value', '{height}x{width} px',
                       height=height, width=width)
     return api.tr('value_unknown', 'unknown')
 
 
 def _dimensions_short(api, image):
-    """Image dimensions compact as 'height x width' (for table cells)."""
+    """Image dimensions compact as 'heightxwidth' (for table cells)."""
     width = getattr(image, 'width', None)
     height = getattr(image, 'height', None)
     if width and height:
-        return api.tr('dimensions_short', '{height} x {width}',
+        return api.tr('dimensions_short', '{height}x{width}',
                       height=height, width=width)
     return api.tr('value_unknown', 'unknown')
 
@@ -115,7 +115,7 @@ class CoverInfoWidget(QtWidgets.QWidget):
 
         self.table = QtWidgets.QTableWidget(0, 3, self)
         self.table.setHorizontalHeaderLabels([
-            api.tr('col_dimensions', 'Dimensions'),
+            api.tr('col_dimensions', 'HxW'),
             api.tr('col_filesize', 'Size'),
             api.tr('col_filetype', 'Type'),
         ])
@@ -137,7 +137,7 @@ class CoverInfoWidget(QtWidgets.QWidget):
         image = images[0]
 
         self.dimensions_label.setText(
-            api.tr('dimensions_line', 'Dimensions: {dimensions}',
+            api.tr('dimensions_line', 'HxW: {dimensions}',
                    dimensions=_dimensions_text(api, image)))
         self.filesize_label.setText(
             api.tr('filesize_line', 'Size: {filesize}',

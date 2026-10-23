@@ -4,9 +4,10 @@ Fügt der Picard-Symbolleiste eine eigene Schaltfläche hinzu, über die
 sich das Fenster "Scripts & Plugins" öffnen lässt. Das Fenster listet
 die eigenen Tagging-Scripte und die registrierten Plugin-Aktionen und
 wendet die Auswahl auf die im Hauptfenster markierten Objekte an.
+Listen und Statuszeile folgen der Auswahl im Hauptfenster automatisch.
 """
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QDialog,
@@ -17,6 +18,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QSplitter,
+    QStyledItemDelegate,
     QToolBar,
     QVBoxLayout,
 )
@@ -84,6 +86,17 @@ def _action_title(action_class):
     return str(title) if title else action_class.__name__
 
 
+class ListItemSpacingDelegate(QStyledItemDelegate):
+    """Zeilenabstand in den Listen vergrößern."""
+
+    EXTRA_SPACING = 6  # zusätzliche Pixel pro Zeile
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        size.setHeight(size.height() + self.EXTRA_SPACING)
+        return size
+
+
 class ScriptsPluginsWindow(QDialog):
     """Fenster mit Script- und Action-Liste.
 
@@ -109,14 +122,26 @@ class ScriptsPluginsWindow(QDialog):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
+        # Schrift im gesamten Fenster einen Punkt größer stellen.
+        font = self.font()
+        if font.pointSize() > 0:
+            font.setPointSize(font.pointSize() + 1)
+        self.setFont(font)
+
         # --- Script-Liste ---
         self.script_list = QListWidget(self)
+        self.script_list.setItemDelegate(
+            ListItemSpacingDelegate(self.script_list)
+        )
         scripts_box = QGroupBox("Tagging-Scripte", self)
         scripts_layout = QVBoxLayout(scripts_box)
         scripts_layout.addWidget(self.script_list)
 
         # --- Action-Liste ---
         self.action_list = QListWidget(self)
+        self.action_list.setItemDelegate(
+            ListItemSpacingDelegate(self.action_list)
+        )
         actions_box = QGroupBox("Plugin-Aktionen", self)
         actions_layout = QVBoxLayout(actions_box)
         actions_layout.addWidget(self.action_list)
@@ -152,6 +177,8 @@ class ScriptsPluginsWindow(QDialog):
         self.refresh_button.clicked.connect(self.refresh)
         self.run_script_button.clicked.connect(self._run_selected_script)
         self.run_action_button.clicked.connect(self._run_selected_action)
+        self.script_list.itemDoubleClicked.connect(self._run_selected_script)
+        self.action_list.itemDoubleClicked.connect(self._run_selected_action)
         self.script_list.currentItemChanged.connect(
             lambda *_: self.run_script_button.setEnabled(
                 self.script_list.currentItem() is not None
@@ -163,6 +190,15 @@ class ScriptsPluginsWindow(QDialog):
             )
         )
 
+        # --- Automatische Auswahl-Verfolgung ---
+        self._selection_signature = None
+        self._needed_points = None
+        self._use_poll_timer = False
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(500)
+        self._poll_timer.timeout.connect(self._check_selection_changed)
+        self._install_selection_tracking()
+
     # ------------------------------------------------------------------
     # Hilfsfunktionen
 
@@ -173,6 +209,58 @@ class ScriptsPluginsWindow(QDialog):
 
     def _set_status(self, text):
         self._status.setText(text)
+
+    # ------------------------------------------------------------------
+    # Auswahl-Verfolgung
+
+    def _install_selection_tracking(self):
+        """Auf Auswahländerungen im Hauptfenster reagieren.
+
+        Bevorzugt über das itemSelectionChanged-Signal der Ansichten
+        des Hauptfenster-Panels — dieselbe Quelle, über die Picard
+        selbst window.selected_objects aktualisiert. Als Fallback
+        dient ein kurzer Umfrage-Timer, falls die interne Struktur
+        nicht zugreifbar ist.
+        """
+        window = self.api.tagger.window
+        hooked = False
+        try:
+            views = list(getattr(window.panel, "_views", None) or [])
+            if views:
+                for view in views:
+                    view.itemSelectionChanged.connect(
+                        self._check_selection_changed
+                    )
+                hooked = True
+        except Exception:
+            self.api.logger.exception(
+                "Auswahl-Signale des Hauptfensters konnten nicht "
+                "verbunden werden."
+            )
+        if not hooked:
+            self._use_poll_timer = True
+
+    def _selection_signature(self, objs):
+        return tuple((type(obj).__name__, id(obj)) for obj in objs)
+
+    def _check_selection_changed(self):
+        objs = self._selected_objects()
+        signature = self._selection_signature(objs)
+        if signature == self._selection_signature:
+            return
+        self._selection_signature = signature
+        needed = set()
+        for obj in objs:
+            needed.update(_points_for_object(obj))
+        if needed != self._needed_points:
+            # Nur neu aufbauen, wenn sich der Objekttyp-Bereich der
+            # Auswahl geändert hat — sonst geht die Listenauswahl
+            # des Nutzers verloren.
+            self._needed_points = needed
+            self._populate_actions(objs)
+        self._set_status(
+            "Auswahl im Hauptfenster: %d Objekt(e)" % len(objs)
+        )
 
     # ------------------------------------------------------------------
     # Listen füllen
@@ -228,7 +316,12 @@ class ScriptsPluginsWindow(QDialog):
         return count
 
     def refresh(self):
+        """Vollständige Aktualisierung beider Listen und der Statuszeile."""
         objs = self._selected_objects()
+        self._selection_signature = self._selection_signature(objs)
+        self._needed_points = set()
+        for obj in objs:
+            self._needed_points.update(_points_for_object(obj))
         num_scripts = self._populate_scripts()
         num_actions = self._populate_actions(objs)
         self._set_status(
@@ -293,8 +386,9 @@ class ScriptsPluginsWindow(QDialog):
                         )
         return changed
 
-    def _run_selected_script(self):
-        item = self.script_list.currentItem()
+    def _run_selected_script(self, item=None):
+        if item is None:
+            item = self.script_list.currentItem()
         if item is None:
             return
         script = item.data(Qt.ItemDataRole.UserRole)
@@ -311,8 +405,9 @@ class ScriptsPluginsWindow(QDialog):
     # ------------------------------------------------------------------
     # Ausführen: Plugin-Aktionen
 
-    def _run_selected_action(self):
-        item = self.action_list.currentItem()
+    def _run_selected_action(self, item=None):
+        if item is None:
+            item = self.action_list.currentItem()
         if item is None:
             return
         data = item.data(Qt.ItemDataRole.UserRole)
@@ -347,6 +442,13 @@ class ScriptsPluginsWindow(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         self.refresh()
+        if self._use_poll_timer and not self._poll_timer.isActive():
+            self._poll_timer.start()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if self._poll_timer.isActive():
+            self._poll_timer.stop()
 
 
 def show_scripts_plugins_window(api, parent):

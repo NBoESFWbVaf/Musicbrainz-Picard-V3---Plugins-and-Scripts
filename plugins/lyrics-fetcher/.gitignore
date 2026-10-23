@@ -1,4 +1,5 @@
 __pycache__/
+__pycache__/*
 *.py[cod]
 .DS_Store
 __init__.cp*.pyc

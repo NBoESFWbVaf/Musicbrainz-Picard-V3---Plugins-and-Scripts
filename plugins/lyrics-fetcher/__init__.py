@@ -379,6 +379,22 @@ def _apply_lyrics(api, track, lyrics):
         return
     track.metadata["lyrics"] = lyrics
     api.logger.debug("lyrics applied to track")
+    # Picard zeigt (und speichert) bei Tracks mit verlinkten Dateien die
+    # Metadaten der DATEI, nicht die des Tracks – die Metadaten-Box liest
+    # track.metadata nur bei Tracks ohne Dateien (metadatabox._update_tags
+    # in picard/ui/metadatabox). Die Lyrics müssen deshalb zusätzlich in
+    # jede verlinkte Datei geschrieben werden, sonst sind sie in der Box
+    # unsichtbar und werden beim Speichern nicht übernommen. Der Schreib-
+    # zugriff auf track.metadata bleibt: update_file_metadata übernimmt
+    # manuelle Track-Änderungen via metadata.diff(scripted_metadata), falls
+    # Dateien später (neu) verlinkt werden.
+    for file in track.files:
+        file.metadata["lyrics"] = lyrics
+        api.logger.debug("lyrics applied to file %r", file)
+        try:
+            file.update()
+        except Exception:
+            api.logger.exception("updating file view failed for %r", file)
     # Ansicht (Baum-Item/Metadaten-Box) aktualisieren; interne Fehler
     # dabei dürfen Picard nicht mitreißen.
     try:

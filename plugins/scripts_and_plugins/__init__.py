@@ -7,7 +7,7 @@ wendet die Auswahl auf die im Hauptfenster markierten Objekte an.
 Listen und Statuszeile folgen der Auswahl im Hauptfenster automatisch.
 """
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QDateTime, Qt, QTimer
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QDialog,
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStyledItemDelegate,
+    QTextEdit,
     QToolBar,
     QVBoxLayout,
 )
@@ -154,6 +155,8 @@ class ScriptsPluginsWindow(QDialog):
 
         # --- Schaltflächen ---
         self.refresh_button = QPushButton("Aktualisieren", self)
+        self.clear_log_button = QPushButton("Leeren", self)
+        self.clear_log_button.setToolTip("Protokoll leeren")
         self.run_script_button = QPushButton("Script ausführen", self)
         self.run_action_button = QPushButton("Aktion ausführen", self)
         self.run_script_button.setEnabled(False)
@@ -161,6 +164,7 @@ class ScriptsPluginsWindow(QDialog):
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.refresh_button)
+        button_layout.addWidget(self.clear_log_button)
         button_layout.addStretch(1)
         button_layout.addWidget(self.run_script_button)
         button_layout.addWidget(self.run_action_button)
@@ -168,13 +172,26 @@ class ScriptsPluginsWindow(QDialog):
         self._status = QLabel("Öffne das Fenster oder klicke auf „Aktualisieren“.", self)
         self._status.setWordWrap(True)
 
+        # --- Protokollfenster ---
+        self.log_view = QTextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setMaximumHeight(140)
+        self.log_view.setPlaceholderText(
+            "Protokoll der ausgeführten Scripte und Aktionen …"
+        )
+        log_box = QGroupBox("Protokoll", self)
+        log_layout = QVBoxLayout(log_box)
+        log_layout.addWidget(self.log_view)
+
         layout = QVBoxLayout(self)
         layout.addWidget(splitter, 1)
+        layout.addWidget(log_box)
         layout.addLayout(button_layout)
         layout.addWidget(self._status)
 
         # --- Signale verbinden ---
         self.refresh_button.clicked.connect(self.refresh)
+        self.clear_log_button.clicked.connect(self.log_view.clear)
         self.run_script_button.clicked.connect(self._run_selected_script)
         self.run_action_button.clicked.connect(self._run_selected_action)
         self.script_list.itemDoubleClicked.connect(self._run_selected_script)
@@ -209,6 +226,16 @@ class ScriptsPluginsWindow(QDialog):
 
     def _set_status(self, text):
         self._status.setText(text)
+
+    def _log_result(self, success, text):
+        """Erfolg/Fehlschlag im Protokollfenster festhalten."""
+        symbol = "✓" if success else "✗"
+        color = "green" if success else "red"
+        timestamp = QDateTime.currentDateTime().toString("HH:mm:ss")
+        self.log_view.append(
+            "[%s] <span style=\"color:%s;\">%s %s</span>"
+            % (timestamp, color, symbol, text)
+        )
 
     # ------------------------------------------------------------------
     # Auswahl-Verfolgung
@@ -349,31 +376,42 @@ class ScriptsPluginsWindow(QDialog):
         Folgt dem Muster aus Album._finalize_loading_album: pro Script
         ein frischer ScriptParser, Auswertung gegen die Track- bzw.
         Album-Metadaten, danach strip_whitespace() und UI-Update.
+        Gibt (geänderte Metadaten, fehlgeschlagene Auswertungen) zurück.
         """
         parser = ScriptParser()
         changed = 0
+        failed = 0
         for obj in objs:
             count = 0
             if isinstance(obj, Album):
                 for track in obj.tracks:
                     if self._eval_script(parser, script, track.metadata):
                         count += 1
+                    else:
+                        failed += 1
                 if self._eval_script(parser, script, obj.metadata):
                     count += 1
+                else:
+                    failed += 1
             elif isinstance(obj, (Track, File)):
                 if self._eval_script(parser, script, obj.metadata):
                     count += 1
+                else:
+                    failed += 1
             elif isinstance(obj, Cluster):
                 for file in obj.files:
                     if self._eval_script(parser, script, file.metadata):
                         count += 1
+                    else:
+                        failed += 1
             else:
                 # Fallback für sonstige Objekte mit Metadaten (z. B. NATs)
                 metadata = getattr(obj, "metadata", None)
-                if metadata is not None and self._eval_script(
-                    parser, script, metadata
-                ):
-                    count += 1
+                if metadata is not None:
+                    if self._eval_script(parser, script, metadata):
+                        count += 1
+                    else:
+                        failed += 1
             if count:
                 changed += count
                 update = getattr(obj, "update", None)
@@ -384,7 +422,7 @@ class ScriptsPluginsWindow(QDialog):
                         self.api.logger.exception(
                             "UI-Update für %r fehlgeschlagen", obj
                         )
-        return changed
+        return changed, failed
 
     def _run_selected_script(self, item=None):
         if item is None:
@@ -394,13 +432,35 @@ class ScriptsPluginsWindow(QDialog):
         script = item.data(Qt.ItemDataRole.UserRole)
         objs = self._selected_objects()
         if not objs:
-            self._set_status("Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.")
+            self._log_result(
+                False,
+                "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
+            )
             return
-        changed = self._apply_script(script, objs)
-        self._set_status(
-            "Script „%s“ ausgeführt: %d Metadaten in %d Objekt(en) aktualisiert."
-            % (script.name, changed, len(objs))
-        )
+        try:
+            changed, failed = self._apply_script(script, objs)
+        except Exception:
+            self.api.logger.exception(
+                "Unerwarteter Fehler beim Ausführen des Scriptes %s", script.name
+            )
+            self._log_result(
+                False,
+                "Script „%s“ — unerwarteter Fehler, Details im Picard-Log."
+                % script.name,
+            )
+            return
+        if failed:
+            self._log_result(
+                False,
+                "Script „%s“ mit Fehlern abgeschlossen: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
+                % (script.name, changed, failed),
+            )
+        else:
+            self._log_result(
+                True,
+                "Script „%s“ ausgeführt: %d Metadaten in %d Objekt(en) aktualisiert."
+                % (script.name, changed, len(objs)),
+            )
 
     # ------------------------------------------------------------------
     # Ausführen: Plugin-Aktionen
@@ -416,8 +476,9 @@ class ScriptsPluginsWindow(QDialog):
         action_class, point = data
         objs = [obj for obj in self._selected_objects() if point in _points_for_object(obj)]
         if not objs:
-            self._set_status(
-                "Die aktuelle Auswahl enthält keine Objekte für diese Aktion."
+            self._log_result(
+                False,
+                "Die aktuelle Auswahl enthält keine Objekte für diese Aktion.",
             )
             return
         try:
@@ -429,11 +490,16 @@ class ScriptsPluginsWindow(QDialog):
                 "Fehler beim Ausführen der Plugin-Aktion %s",
                 _action_title(action_class),
             )
-            self._set_status("Fehler beim Ausführen der Aktion — siehe Log.")
+            self._log_result(
+                False,
+                "Aktion „%s“ — Fehler beim Ausführen, Details im Picard-Log."
+                % _action_title(action_class),
+            )
             return
-        self._set_status(
+        self._log_result(
+            True,
             "Aktion „%s“ auf %d Objekt(en) ausgeführt."
-            % (_action_title(action_class), len(objs))
+            % (_action_title(action_class), len(objs)),
         )
 
     # ------------------------------------------------------------------

@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 #
-# Display Coverinformation — Plugin für MusicBrainz Picard 3
+# Display Coverinformation — Plugin for MusicBrainz Picard 3
 #
-# Zeigt Informationen zu den Coverbildern (Bildmaße in Höhe x Breite,
-# Dateigröße, Dateityp) direkt unterhalb der Vorschaubilder in der
-# Cover-Spalte des Hauptfensters an — fest in die Oberfläche eingebettet,
-# nicht als eigenes Fenster.
+# Displays information about the cover art images (dimensions as
+# height x width, file size, file type) directly below the preview
+# images in the cover art panel of the main window — firmly embedded
+# in the interface, not as a separate window.
 #
-# Angezeigt werden die Informationen:
-# - für das neue Coverbild (z. B. das aus dem Internet zu ladende)
-# - für das in der Datei bereits vorhandene Original-Coverbild
-# - bei mehreren Bildern zusätzlich tabellarisch für alle Bilder
+# The information is displayed:
+# - for the new cover art image (e.g. to be loaded from the internet)
+# - for the original cover art image embedded in the file
+# - for multiple images additionally in a table listing all images
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -27,24 +27,24 @@ from picard.plugin3.api import PluginApi
 
 PLUGIN_NAME = 'Display Coverinformation'
 
-# Zentraler Zustand des Plugins, damit disable() alles wieder aufräumen kann.
+# Central plugin state, so disable() can clean everything up again.
 _state = {}
 
 
 def _human_size(size):
-    """Formatiert eine Byte-Anzahl lesbar (dezimal, deutsches Zahlenformat)."""
+    """Format a byte count in human-readable form (decimal, English number format)."""
     size = float(size)
     for unit in ('B', 'kB', 'MB', 'GB'):
         if size < 1000.0 or unit == 'GB':
             if unit == 'B':
                 return '%d B' % int(size)
-            return ('%.1f %s' % (size, unit)).replace('.', ',')
+            return '%.1f %s' % (size, unit)
         size /= 1000.0
-    # wird nie erreicht ('GB' deckt alles ab)
+    # never reached ('GB' covers everything)
 
 
 def _file_type(image):
-    """Bestimmt die Dateiendung (z. B. 'JPG') als Dateityp-Angabe."""
+    """Determine the file extension (e.g. 'JPG') as the file type."""
     extension = (getattr(image, 'extension', None) or '').lstrip('.').upper()
     mimetype = getattr(image, 'mimetype', None) or ''
     if not extension and mimetype:
@@ -53,39 +53,39 @@ def _file_type(image):
 
 
 def _dimensions_text(api, image):
-    """Bildmaße als 'Höhe x Breite Pixel'."""
+    """Image dimensions as 'height x width Pixels'."""
     width = getattr(image, 'width', None)
     height = getattr(image, 'height', None)
     if width and height:
-        return api.tr('dimensions_value', '{height} x {width} Pixel',
+        return api.tr('dimensions_value', '{height} x {width} Pixels',
                       height=height, width=width)
-    return api.tr('value_unknown', 'unbekannt')
+    return api.tr('value_unknown', 'unknown')
 
 
 def _dimensions_short(api, image):
-    """Bildmaße kompakt als 'Höhe x Breite' (für Tabellenzellen)."""
+    """Image dimensions compact as 'height x width' (for table cells)."""
     width = getattr(image, 'width', None)
     height = getattr(image, 'height', None)
     if width and height:
         return api.tr('dimensions_short', '{height} x {width}',
                       height=height, width=width)
-    return api.tr('value_unknown', 'unbekannt')
+    return api.tr('value_unknown', 'unknown')
 
 
 def _filesize_text(api, image):
-    """Dateigröße, lesbar formatiert."""
+    """File size, formatted in human-readable form."""
     datalength = getattr(image, 'datalength', None)
     if datalength:
         return _human_size(datalength)
-    return api.tr('value_unknown', 'unbekannt')
+    return api.tr('value_unknown', 'unknown')
 
 
 class CoverInfoWidget(QtWidgets.QWidget):
-    """Bildinformationen zu einem Vorschaubild, direkt darunter eingebettet.
+    """Cover art image information for a preview image, embedded directly below it.
 
-    Zeigt die drei Info-Zeilen (Bildmaße, Dateigröße, Dateityp) des ersten
-    Bildes und bei mehreren Bildern zusätzlich eine Tabelle mit den Werten
-    aller Bilder.
+    Shows the three info lines (dimensions, file size, file type) of the
+    first image and, if there are multiple images, additionally a table
+    with the values of all images.
     """
 
     def __init__(self, api, caption='', parent=None):
@@ -112,9 +112,9 @@ class CoverInfoWidget(QtWidgets.QWidget):
 
         self.table = QtWidgets.QTableWidget(0, 3, self)
         self.table.setHorizontalHeaderLabels([
-            api.tr('col_dimensions', 'Maße'),
-            api.tr('col_filesize', 'Größe'),
-            api.tr('col_filetype', 'Typ'),
+            api.tr('col_dimensions', 'Dimensions'),
+            api.tr('col_filesize', 'Size'),
+            api.tr('col_filetype', 'Type'),
         ])
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
@@ -125,7 +125,7 @@ class CoverInfoWidget(QtWidgets.QWidget):
         self.setVisible(False)
 
     def update_info(self, images, visible=True):
-        """Aktualisiert die Anzeige anhand der CoverArtImage-Objekte eines Thumbnails."""
+        """Update the display based on the CoverArtImage objects of a thumbnail."""
         if not visible or not images:
             self.setVisible(False)
             return
@@ -134,15 +134,15 @@ class CoverInfoWidget(QtWidgets.QWidget):
         image = images[0]
 
         self.dimensions_label.setText(
-            api.tr('dimensions_line', 'Maße: {dimensions}',
+            api.tr('dimensions_line', 'Dimensions: {dimensions}',
                    dimensions=_dimensions_text(api, image)))
         self.filesize_label.setText(
-            api.tr('filesize_line', 'Größe: {filesize}',
+            api.tr('filesize_line', 'Size: {filesize}',
                    filesize=_filesize_text(api, image)))
         self.filetype_label.setText(
-            api.tr('filetype_line', 'Typ: {filetype}', filetype=_file_type(image)))
+            api.tr('filetype_line', 'Type: {filetype}', filetype=_file_type(image)))
 
-        # Bei mehreren Bildern alle Werte tabellarisch auflisten
+        # With multiple images, list all values in a table
         if len(images) > 1:
             self._fill_table(api, images)
             self.table.setVisible(True)
@@ -153,7 +153,7 @@ class CoverInfoWidget(QtWidgets.QWidget):
         self.setVisible(True)
 
     def _fill_table(self, api, images):
-        """Füllt die Tabelle mit den Werten aller Bilder."""
+        """Fill the table with the values of all images."""
         self.table.setRowCount(len(images))
         for row, image in enumerate(images):
             values = (
@@ -170,48 +170,72 @@ class CoverInfoWidget(QtWidgets.QWidget):
 
 
 def _refresh_info(box):
-    """Aktualisiert beide Info-Widgets anhand der aktuellen Cover-Thumbnails."""
+    """Update both info widgets based on the current cover art thumbnails."""
     widgets = _state.get('widgets')
     if not widgets:
         return
     try:
         new_images = getattr(box.cover_art, 'data', None) or []
         orig_images = getattr(box.orig_cover_art, 'data', None) or []
-        # Die Original-Anzeige nur einblenden, wenn die Cover-Spalte auch
-        # das Original-Vorschaubild anzeigt.
+        # Only show the original information if the cover art panel is
+        # also showing the original preview image.
         orig_visible = box.orig_cover_art.isVisible() and bool(orig_images)
         widgets['new'].update_info(new_images, visible=bool(new_images))
         widgets['orig'].update_info(orig_images, visible=orig_visible)
     except Exception:
         for widget in widgets.values():
-            widget.setVisible(False)
+            try:
+                widget.setVisible(False)
+            except RuntimeError:
+                # Widget was already deleted (e.g. after re-enabling)
+                pass
+
+
+def _insert_after(box_layout, anchor, widget):
+    """Insert a widget directly below an anchor widget into the layout.
+
+    If the anchor is not contained in the layout (e.g. a differing Picard
+    version), the widget is inserted before the trailing spacer at the end.
+    """
+    index = box_layout.indexOf(anchor)
+    if index < 0:
+        index = box_layout.count() - 1
+    box_layout.insertWidget(index + 1, widget)
 
 
 def enable(api: PluginApi):
-    """Plugin aktivieren: Info-Widgets unterhalb der Vorschaubilder einfügen."""
+    """Enable the plugin: insert the info widgets below the preview images."""
+    # If any remains of a previous enable() call are still present (e.g.
+    # after re-enabling without a restart), clean them up first.
+    if _state:
+        disable()
+
     box = getattr(api.tagger.window, 'cover_art_box', None)
     if box is None:
-        api.logger.error('%s: Cover-Spalte nicht gefunden, Plugin wird nicht aktiviert.',
+        api.logger.error('%s: Cover art panel not found, plugin will not be enabled.',
                          PLUGIN_NAME)
         return
 
     from picard.ui.coverartbox import CoverArtBox
 
     widgets = {
-        # Neues Coverbild (z. B. aus dem Internet geladen), ohne Überschrift
+        # New cover art image (e.g. loaded from the internet), without heading
         'new': CoverInfoWidget(api, parent=box),
-        # Original-Coverbild aus der Datei (lokal), mit kurzer Kennzeichnung
+        # Original cover art image from the file (local), with a short label
         'orig': CoverInfoWidget(
             api, caption=api.tr('caption_orig', 'Original:'), parent=box),
     }
 
-    # Direkt unterhalb der jeweiligen Vorschaubilder in die Cover-Spalte
-    # einfügen (kein eigenes Fenster).
-    box.layout.insertWidget(box.layout.indexOf(box.cover_art_info_label) + 1, widgets['new'])
-    box.layout.insertWidget(box.layout.indexOf(box.orig_cover_art_info_label) + 1, widgets['orig'])
+    # Insert directly below the respective preview images into the cover
+    # art panel (not a separate window). The built-in info labels serve as
+    # anchors if present; otherwise the preview images themselves.
+    new_anchor = getattr(box, 'cover_art_info_label', None) or box.cover_art
+    orig_anchor = getattr(box, 'orig_cover_art_info_label', None) or box.orig_cover_art
+    _insert_after(box.layout, new_anchor, widgets['new'])
+    _insert_after(box.layout, orig_anchor, widgets['orig'])
 
-    # update_display() ist der zentrale Aktualisierungspunkt der Cover-Spalte
-    # (Auswahlwechsel, neue Coverbilder, gespeicherte Bilder). Dort einklinken:
+    # update_display() is the central refresh point of the cover art panel
+    # (selection changes, new cover art, saved images). Hook in there:
     original_update_display = CoverArtBox.update_display
 
     def update_display_with_info(self, force=False):
@@ -225,14 +249,14 @@ def enable(api: PluginApi):
     _state['original_update_display'] = original_update_display
     _state['patched_update_display'] = update_display_with_info
 
-    # Erste Aktualisierung für die aktuelle Auswahl
+    # First update for the current selection
     _refresh_info(box)
-    api.logger.info('%s: Bildinformationen werden unterhalb der Vorschaubilder angezeigt.',
+    api.logger.info('%s: Cover art image information is displayed below the preview images.',
                     PLUGIN_NAME)
 
 
 def disable():
-    """Plugin deaktivieren: Widgets entfernen und Patch zurücknehmen."""
+    """Disable the plugin: remove the widgets and revert the patch."""
     from picard.ui.coverartbox import CoverArtBox
 
     patched = _state.get('patched_update_display')

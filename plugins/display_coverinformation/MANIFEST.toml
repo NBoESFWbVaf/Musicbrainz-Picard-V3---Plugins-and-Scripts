@@ -17,7 +17,7 @@ license = "GPL-2.0-or-later"
 license_url = "https://www.gnu.org/licenses/gpl-2.0.html"
 categories = ["ui", "coverart"]
 min_python_version = "3.9"
-source_locale = "de"
+source_locale = "en"
 
 [description_i18n]
 de = "Zeigt die Bildinformationen (Bildmaße, Dateigröße, Dateityp) unterhalb des Coverbildes in der Cover-Spalte an."

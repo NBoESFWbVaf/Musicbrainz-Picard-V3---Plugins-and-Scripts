@@ -1,0 +1,34 @@
+uuid = "1e22068c-0b15-42fb-b92d-1b55266dd049"
+name = "Display Coverinformation"
+description = "Displays the cover art image details (dimensions, file size, file type) below the cover art in the cover art panel."
+long_description = """
+Displays detailed information about the currently shown cover art directly below the cover art image in the cover art panel:
+
+- Image dimensions (height x width in pixels)
+- File size
+- File type
+
+The information is updated automatically whenever the selection or the cover art changes.
+"""
+api = ["3.0"]
+version = "0.0.1"
+authors = ["Mirakuli Teebaum"]
+license = "GPL-2.0-or-later"
+license_url = "https://www.gnu.org/licenses/gpl-2.0.html"
+categories = ["ui", "coverart"]
+min_python_version = "3.9"
+source_locale = "de"
+
+[description_i18n]
+de = "Zeigt die Bildinformationen (Bildmaße, Dateigröße, Dateityp) unterhalb des Coverbildes in der Cover-Spalte an."
+
+[long_description_i18n]
+de = """
+Zeigt detaillierte Informationen zum aktuell angezeigten Coverbild direkt unterhalb des Coverbildes in der Cover-Spalte:
+
+- Bildmaße (Höhe x Breite in Pixel)
+- Dateigröße
+- Dateityp
+
+Die Anzeige wird automatisch aktualisiert, sobald sich die Auswahl oder das Coverbild ändert.
+"""

@@ -2,13 +2,13 @@ uuid = "1e22068c-0b15-42fb-b92d-1b55266dd049"
 name = "Display Coverinformation"
 description = "Displays the cover art image details (dimensions, file size, file type) below the cover art in the cover art panel."
 long_description = """
-Displays detailed information about the currently shown cover art directly below the cover art image in the cover art panel:
+Displays detailed information about the currently shown cover art directly below the preview images in the cover art panel:
 
 - Image dimensions (height x width in pixels)
 - File size
 - File type
 
-The information is updated automatically whenever the selection or the cover art changes.
+The information is shown embedded in the cover art panel, both for the new cover art (e.g. to be loaded from the internet) and for the original cover art embedded in the file. If more than one image is present, all values are also listed in a table below the summary. The display is updated automatically whenever the selection or the cover art changes.
 """
 api = ["3.0"]
 version = "0.0.1"
@@ -24,11 +24,11 @@ de = "Zeigt die Bildinformationen (Bildmaße, Dateigröße, Dateityp) unterhalb 
 
 [long_description_i18n]
 de = """
-Zeigt detaillierte Informationen zum aktuell angezeigten Coverbild direkt unterhalb des Coverbildes in der Cover-Spalte:
+Zeigt detaillierte Informationen zum aktuell angezeigten Coverbild direkt unterhalb der Vorschaubilder in der Cover-Spalte:
 
 - Bildmaße (Höhe x Breite in Pixel)
 - Dateigröße
 - Dateityp
 
-Die Anzeige wird automatisch aktualisiert, sobald sich die Auswahl oder das Coverbild ändert.
+Die Informationen werden in die Cover-Spalte eingebettet angezeigt, sowohl für das neue (ggf. aus dem Internet zu ladende) Coverbild als auch für das in der Datei vorhandene Original. Bei mehreren Bildern werden alle Werte zusätzlich in einer Tabelle unterhalb der Übersicht aufgelistet. Die Anzeige wird automatisch aktualisiert, sobald sich die Auswahl oder das Coverbild ändert.
 """

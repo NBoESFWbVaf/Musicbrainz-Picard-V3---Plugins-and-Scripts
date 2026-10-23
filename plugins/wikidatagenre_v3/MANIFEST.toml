@@ -1,8 +1,41 @@
-uuid = "7d4f0f0a-8d1e-4c0b-9f6a-7e2d3b9a4c31"
+# MANIFEST.toml for the Wikidata Genre V3 plugin (Picard Plugin API 3.0).
+# Must be placed directly next to the __init__.py in the plugin directory:
+#   wikidatagenre_v3/
+#   ├── MANIFEST.toml
+#   └── __init__.py
+
+# Required fields (picard/plugin3/validator.py):
+# uuid, name, description, api
+uuid = "354eb295-7261-446e-a640-65ba2769bcb2"
 name = "Wikidata Genre V3"
-description = "Adds genre tags from Wikidata relationships for release groups, artists, and works."
+description = "Adds genre tags from Wikidata (P136) for release groups, artists and works"
+
+# Plugin version (optional). "1.0" is parsed by Picard's Version.from_string
+# as major.minor and, among other things, shown in the plugin list.
+version = "1.0"
+
+# Supported plugin API versions; the plugin only loads if the
+# Picard API version is contained in this list.
 api = ["3.0"]
-authors = ["Daniel Sobey", "Sambhav Kothari", "Community port"]
-license = "WTFPL"
-license_url = "http://www.wtfpl.net/"
+
+# Optional fields:
+authors = ["Daniel Sobey", "Sambhav Kothari", "Community port", "Mirakuli Teebaum"]
+license = "GPL-2.0-or-later"
+license_url = "https://www.gnu.org/licenses/gpl-2.0.html"
 categories = ["metadata"]
+min_python_version = "3.9"
+source_locale = "en"
+
+long_description = """
+Port of the classic wikidatagenre plugin to Picard 3.0's plugin system.
+
+Features:
+- Genres from Wikidata (P136) for release groups, artists and works
+- Only one lookup per unique entity; results are shared by all tracks
+- Genres are merged with a configurable delimiter
+- Ignore lists for genres (including /regex/) and artists
+- Optional: only use artist genres if no release group genres were found
+
+Album processing waits for the genre lookups, so that tagging scripts
+process the complete genres on the first load already.
+"""

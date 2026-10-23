@@ -1,34 +1,34 @@
 # -*- coding: utf-8 -*-
 """Wikidata Genre V3 — MusicBrainz Picard Plugin API v3.
 
-Portierung des Wikidata-Genre-Plugins auf das neue Plugin-System von Picard 3.0.
+Port of the Wikidata genre plugin to Picard 3.0's new plugin system.
 
-Korrigierte Fassung:
-- OptionsPage: api wird als Klassenattribut von api.register_options_page()
-  gesetzt; __init__ darf es NICHT mit None überschreiben.
-- Web-Request-Handler empfangen (document, reply, error) — drei Argumente.
-- get_url() mit parse_response_type=None, damit rohe XML-Bytes ohne
-  JSON-Parse-Fehler an die Handler durchgereicht werden.
-- Toter Code entfernt (_request_wikidata/_handle_wikidata, Config-Fallbacks).
-- Album-Tasks sind CRITICAL-Tasks (blocking=True): Das Album wird erst
-  finalisiert, wenn die Genres eingetroffen sind — die Tagging-Scripte des
-  Benutzers laufen erst in _finalize_loading_album() und sehen damit die
-  vollständigen Metadaten inklusive Genres. Da api.complete_album_task()
-  das Finalisieren NICHT erneut anstößt (album.complete_task() entfernt
-  den Task nur), ruft das Plugin nach jedem abgeschlossenen Task
-  album._finalize_loading(None) auf — dasselbe Muster, das klassische
-  V2-Plugins nutzten. Ohne diesen Nachtrag bliebe das Album dauerhaft bei
-  "Albuminformationen werden geladen" hängen.
-- Vor dem Finalisieren werden abgelaufene Album-Tasks sicher entfernt:
-  Picards check_timed_out_tasks() ruft request.abort() auf, was ein
-  PendingRequest nicht besitzt (AttributeError). Stattdessen wird
-  webservice.abort_task() verwendet, wie in Picards cancel_tasks().
-- Der CRITICAL-Task wird direkt über album.add_task(timeout=None)
-  registriert: api.add_album_task(blocking=True) erzwingt ein
-  30-Sekunden-Timeout, das bei Alben mit vielen einzigartigen Werken
-  nicht reicht (Picard drosselt Wikidata auf ~1 Anfrage/Sekunde, d. h.
-  ab ~28 Werken würde die Kette abreißen). Wie beim klassischen V2-Plugin
-  gibt es kein künstliches Timeout; Netzwerk-Timeouts greifen weiterhin.
+Corrected version:
+- OptionsPage: api is set as a CLASS attribute by api.register_options_page();
+  __init__ must NOT shadow it with None.
+- Web request handlers receive (document, reply, error) — three arguments.
+- get_url() with parse_response_type=None, so raw XML bytes are passed
+  through to the handlers without JSON parse errors.
+- Dead code removed (_request_wikidata/_handle_wikidata, config fallbacks).
+- Album tasks are CRITICAL tasks (blocking=True): the album is only
+  finalized once the genres have arrived — the user's tagging scripts
+  only run in _finalize_loading_album() and therefore see the complete
+  metadata including genres. Since api.complete_album_task() does NOT
+  re-trigger finalization (album.complete_task() only removes the task),
+  the plugin calls album._finalize_loading(None) after each completed
+  task — the same pattern classic V2 plugins used. Without this
+  follow-up, the album would be stuck at "Loading album information"
+  forever.
+- Before finalizing, timed-out album tasks are removed safely: Picard's
+  check_timed_out_tasks() calls request.abort(), which a PendingRequest
+  does not have (AttributeError). webservice.abort_task() is used
+  instead, as in Picard's cancel_tasks().
+- The CRITICAL task is registered directly via album.add_task(timeout=None):
+  api.add_album_task(blocking=True) enforces a 30-second timeout, which
+  is not enough for albums with many unique works (Picard rate-limits
+  Wikidata to ~1 request/second, i.e. from ~28 works onward the chain
+  would break). Like the classic V2 plugin, there is no artificial
+  timeout; network timeouts still apply.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ from picard.album_requests import TaskType
 from picard.plugin3.api import OptionsPage
 
 
-PLUGIN_VERSION = "3.4.1"
+PLUGIN_VERSION = "3.4.2"
 WIKIDATA_BASE = "https://www.wikidata.org/wiki/Special:EntityData/"
 MB_BASE = "https://musicbrainz.org/ws/2/"
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -73,10 +73,10 @@ _PENDING = {}
 # Cross-album genre cache, keyed by "<entity_type>|<entity_id>".
 _CACHE = {}
 
-# Volle Task-IDs ("<plugin_id>_<task_id>") der durch Timeout abgeräumten
-# Album-Tasks, jeweils mit id(album) gepaart. Verhindert, dass deren
-# späteres complete_album_task() die Warnung "Attempted to complete
-# unknown task" auslöst.
+# Full task IDs ("<plugin_id>_<task_id>") of album tasks that were cleaned
+# up due to a timeout, paired with id(album). Prevents their later
+# complete_album_task() from triggering the "Attempted to complete
+# unknown task" warning.
 _ABANDONED = set()
 
 
@@ -199,15 +199,15 @@ def _parse_wikidata_genres(data, item_id, ignored_patterns):
 
 
 def _cleanup_timed_out_tasks(api, album):
-    """Räumt abgelaufene Album-Tasks sicher ab.
+    """Safely clean up timed-out album tasks.
 
-    Picards check_timed_out_tasks() ruft task_info.request.abort() auf,
-    ein PendingRequest besitzt diese Methode aber nicht (nur das Flag
-    "aborted") — das löst ein AttributeError aus und bricht das
-    Finalisieren ab, sodass das Album endgültig hängen bliebe. Die
-    korrekte Methode ist webservice.abort_task(), wie sie Picard selbst
-    in cancel_tasks() verwendet. Wir führen die Aufräumarbeit deshalb
-    hier aus, bevor _finalize_loading() aufgerufen wird.
+    Picard's check_timed_out_tasks() calls task_info.request.abort(),
+    but a PendingRequest does not have that method (only the "aborted"
+    flag) — this raises an AttributeError and aborts finalization, so
+    the album would be stuck for good. The correct method is
+    webservice.abort_task(), which Picard itself uses in cancel_tasks().
+    We therefore perform the cleanup here, before _finalize_loading()
+    is called.
     """
     pending = getattr(album, "_pending_tasks", None)
     if not pending:
@@ -244,21 +244,21 @@ def _cleanup_timed_out_tasks(api, album):
 
 
 def _finish_task(api, album, task_id):
-    """Album-Task abschließen und das Finalisieren erneut anstoßen.
+    """Complete an album task and re-trigger finalization.
 
-    api.complete_album_task() ruft nur album.complete_task() auf und stößt
-    das Finalisieren des Albums NICHT erneut an. Da unsere Tasks CRITICAL
-    sind (sie halten _finalize_loading_album() auf, bis die Genres da sind
-    — erst dort laufen die Tagging-Scripte des Benutzers), holen wir das
-    hier nach, exakt wie die klassischen V2-Plugins
+    api.complete_album_task() only calls album.complete_task() and does
+    NOT re-trigger the album's finalization. Since our tasks are
+    CRITICAL (they hold back _finalize_loading_album() until the genres
+    are there — the user's tagging scripts only run at that point), we
+    make up for it here, exactly like the classic V2 plugins did
     (album._requests -= 1; album._finalize_loading(None)).
-    _finalize_loading() selbst ist idempotent: Es kehrt früh zurück, wenn
-    noch kritische Tasks offen sind oder das Album bereits geladen wurde.
+    _finalize_loading() itself is idempotent: it returns early if
+    critical tasks are still open or the album has already been loaded.
     """
     full_id = f"{getattr(api, 'plugin_id', '')}_{task_id}"
     if (id(album), full_id) in _ABANDONED:
-        # Task wurde wegen Timeout bereits aus der Album-Verwaltung
-        # entfernt — nicht erneut abschließen.
+        # The task was already removed from the album's task management
+        # due to a timeout — do not complete it again.
         _ABANDONED.discard((id(album), full_id))
         return
     try:
@@ -266,18 +266,19 @@ def _finish_task(api, album, task_id):
     except Exception:
         api.logger.exception("Wikidata Genre: could not complete task %s", task_id)
     else:
-        # INFO-Log als Diagnose: bestätigt ohne Debug-Modus, dass der
-        # Task abgeschlossen wurde.
+        # INFO log for diagnostics: confirms without debug mode that
+        # the task was completed.
         api.logger.info("Wikidata Genre V3: lookup task %s finished", task_id)
     if album is None or getattr(album, "loaded", True):
         return
     tagger = getattr(album, "tagger", None)
     if tagger is None or getattr(album, "id", None) not in getattr(tagger, "albums", {}):
-        # Album wurde inzwischen entfernt; nicht finalisieren.
+        # The album was removed in the meantime; do not finalize.
         return
-    # Abgelaufene Tasks zuerst sicher entfernen — sonst bräche
-    # _finalize_loading() in Picards check_timed_out_tasks() mit
-    # AttributeError ab (PendingRequest hat kein abort()).
+    # Remove timed-out tasks safely first — otherwise
+    # _finalize_loading() would crash in Picard's
+    # check_timed_out_tasks() with an AttributeError
+    # (PendingRequest has no abort()).
     _cleanup_timed_out_tasks(api, album)
     try:
         album._finalize_loading(None)
@@ -286,8 +287,8 @@ def _finish_task(api, album, task_id):
 
 
 def _refresh_track(track):
-    """Aktualisiert die Track-Anzeige, damit neu geschriebene Genres
-    sofort sichtbar werden."""
+    """Refresh the track display so newly written genres become
+    visible immediately."""
     if track is None:
         return
     try:
@@ -323,8 +324,8 @@ def _apply_genres(api, item_key, cache_key, pending, all_genres):
 def _handle_musicbrainz(api, album, task_id, item_key, cache_key, entity_type, data, error):
     """Handle the MusicBrainz url-rels response and chain Wikidata requests.
 
-    Web-Request-Handler empfangen (document, reply, error); reply wird
-    hier nicht benötigt, muss aber in der Signatur stehen.
+    Web request handlers receive (document, reply, error); reply is not
+    needed here but must be part of the signature.
     """
     pending = _PENDING.get(item_key)
     if not pending:
@@ -353,8 +354,8 @@ def _handle_musicbrainz(api, album, task_id, item_key, cache_key, entity_type, d
                 try:
                     all_genres = sorted(pending["genres"], key=str.casefold)
                     if all_genres:
-                        # Ergebnis-Log: welche Genres kamen wirklich von
-                        # Wikidata, und für wie viele wartende Tracks?
+                        # Result log: which genres actually came from
+                        # Wikidata, and for how many waiting tracks?
                         api.logger.info(
                             "Wikidata Genre V3: %s received from Wikidata "
                             "(%d tracks waiting): %s",
@@ -418,22 +419,21 @@ def _handle_musicbrainz(api, album, task_id, item_key, cache_key, entity_type, d
 
 
 def _add_album_task(api, album, task_id, description, create_request):
-    """Registriert einen CRITICAL-Task ohne künstliches Timeout.
+    """Register a CRITICAL task without an artificial timeout.
 
-    Das Album wird dadurch erst finalisiert, wenn die Genres vorliegen —
-    erst in _finalize_loading_album() laufen die Tagging-Scripte des
-    Benutzers, die Bereinigungen auf den Genres ausführen sollen.
+    This makes the album finalize only once the genres are available —
+    the user's tagging scripts, which are supposed to clean up the
+    genres, only run in _finalize_loading_album().
 
-    api.add_album_task(blocking=True) erzwingt ein 30-Sekunden-Timeout.
-    Picard drosselt Wikidata-Anfragen aber auf etwa eine pro Sekunde,
-    weshalb Alben mit vielen einzigartigen Werken die 30 s überschreiten
-    würden; die letzten Tasks würden abgeräumt und deren Genres gingen
-    unscriptet ein. Der Task wird daher direkt mit timeout=None
-    registriert — wie das klassische V2-Plugin, das ebenfalls keine
-    Timeouts kannte. Netzwerk-Timeouts greifen weiterhin, und
-    _finish_task() schließt den Task in jedem Fall ab. Scheitert die
-    direkte Registrierung, greift der öffentliche API-Aufruf als Fallback
-    (mit dann erzwungenem 30-s-Timeout).
+    api.add_album_task(blocking=True) enforces a 30-second timeout.
+    But Picard rate-limits Wikidata requests to roughly one per second,
+    so albums with many unique works would exceed 30 s; the last tasks
+    would be cleaned up and their genres would arrive without being
+    scripted. The task is therefore registered directly with
+    timeout=None — like the classic V2 plugin, which also had no
+    timeouts. Network timeouts still apply, and _finish_task() completes
+    the task in any case. If direct registration fails, the public API
+    call is used as a fallback (with its enforced 30 s timeout).
     """
     plugin_id = getattr(api, "plugin_id", "")
     try:
@@ -473,8 +473,8 @@ def _queue_lookup(api, album, track, metadata, item_id, entity_type):
     item_key = f"{album_key}|{cache_key}"
     task_id = f"wikidatagenre_{entity_type}_{item_id}"
     if item_key in _PENDING:
-        # Mehrere Tracks teilen sich dieselbe Entity: nur EIN Lookup pro
-        # Album + Entity; alle wartenden Metadaten erhalten das Ergebnis.
+        # Multiple tracks share the same entity: only ONE lookup per
+        # album + entity; all waiting metadata objects receive the result.
         api.logger.debug(
             "Wikidata Genre V3: %s %s already pending, sharing result",
             entity_type, item_id,
@@ -496,8 +496,8 @@ def _queue_lookup(api, album, track, metadata, item_id, entity_type):
         )
 
     try:
-        # WICHTIG: CRITICAL-Task, damit das Album erst finalisiert wird,
-        # wenn die Genres vorliegen (siehe _add_album_task und _finish_task).
+        # IMPORTANT: CRITICAL task, so the album is only finalized once
+        # the genres are available (see _add_album_task and _finish_task).
         _add_album_task(
             api, album, task_id,
             f"Looking up Wikidata genres ({entity_type})",
@@ -506,16 +506,16 @@ def _queue_lookup(api, album, track, metadata, item_id, entity_type):
     except Exception:
         _PENDING.pop(item_key, None)
         api.logger.exception("Wikidata Genre: failed to queue %s", item_id)
-        # Der Task kann bereits registriert worden sein, bevor
-        # request_factory() fehlgeschlagen ist. In jedem Fall abschließen,
-        # sonst blockierte er das Finalisieren des Albums für immer.
+        # The task may already have been registered before
+        # request_factory() failed. Complete it in any case, otherwise
+        # it would block the album's finalization forever.
         try:
             api.complete_album_task(album, task_id)
         except Exception:
             pass
     else:
-        # INFO-Log als Diagnose: bestätigt ohne Debug-Modus, dass die neue
-        # Plugin-Version läuft und der Lookup registriert wurde.
+        # INFO log for diagnostics: confirms without debug mode that the
+        # new plugin version is running and the lookup was registered.
         api.logger.info(
             "Wikidata Genre V3: genre lookup queued for %s %s", entity_type, item_id
         )
@@ -545,18 +545,18 @@ class WikidataGenreOptionsPage(OptionsPage):
     PARENT = "plugins"
 
     def __init__(self, parent=None):
-        # WICHTIG: kein api-Parameter, self.api nicht überschreiben.
-        # api.register_options_page() setzt die API als Klassenattribut
-        # auf dieser Klasse; der Optionsdialog instanziiert die Seite
-        # ohne Argumente. Ein "self.api = api" würde das Klassenattribut
-        # mit None überschatten und load()/save() zum Absturz bringen.
+        # IMPORTANT: no api parameter, do not overwrite self.api.
+        # api.register_options_page() sets the API as a CLASS attribute
+        # on this class; the options dialog instantiates the page with
+        # no arguments. A "self.api = api" would shadow the class
+        # attribute with None and crash load()/save().
         super().__init__(parent)
-        self.use_release_group = QCheckBox("Genres der Release Group verwenden")
-        self.use_artist = QCheckBox("Genres der Künstler verwenden")
+        self.use_release_group = QCheckBox("Use genres from the release group")
+        self.use_artist = QCheckBox("Use genres from the artists")
         self.artist_only_if_no_release = QCheckBox(
-            "Künstlergenres nur verwenden, wenn keine Release-Group-Genres gefunden wurden"
+            "Only use artist genres if no release group genres were found"
         )
-        self.use_work = QCheckBox("Genres der Werke verwenden")
+        self.use_work = QCheckBox("Use genres from the works")
         self.ignore_artists = QLineEdit()
         self.ignore_genres = QLineEdit()
         self.delimiter = QLineEdit()
@@ -565,9 +565,9 @@ class WikidataGenreOptionsPage(OptionsPage):
         layout.addRow(self.use_artist)
         layout.addRow(self.artist_only_if_no_release)
         layout.addRow(self.use_work)
-        layout.addRow("Künstler ignorieren (kommagetrennt):", self.ignore_artists)
-        layout.addRow("Genres ignorieren (kommagetrennt; /Regex/ möglich):", self.ignore_genres)
-        layout.addRow("Genre-Trennzeichen:", self.delimiter)
+        layout.addRow("Ignore artists (comma-separated):", self.ignore_artists)
+        layout.addRow("Ignore genres (comma-separated; /regex/ allowed):", self.ignore_genres)
+        layout.addRow("Genre delimiter:", self.delimiter)
         self.setLayout(layout)
 
     def load(self):
@@ -598,7 +598,15 @@ def enable(api):
         api.plugin_config.register_option(key, default)
     api.register_track_metadata_processor(process_track)
     api.register_options_page(WikidataGenreOptionsPage)
-    api.logger.info("Wikidata Genre V3 %s enabled", PLUGIN_VERSION)
+    # Log the active sources at startup — otherwise a disabled source
+    # is hard to identify as the cause of missing genres.
+    api.logger.info(
+        "Wikidata Genre V3 %s enabled (sources: release-group=%s, artist=%s, work=%s)",
+        PLUGIN_VERSION,
+        _setting(api, "use_release_group_genres"),
+        _setting(api, "use_artist_genres"),
+        _setting(api, "use_work_genres"),
+    )
 
 
 def disable():

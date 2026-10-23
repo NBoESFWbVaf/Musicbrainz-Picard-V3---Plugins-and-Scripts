@@ -425,7 +425,10 @@ class ScriptsPluginsWindow(QDialog):
         return changed, failed
 
     def _run_selected_script(self, item=None):
-        if item is None:
+        # Achtung: Beim Doppelklick liefert Qt das QListWidgetItem,
+        # beim Button-Klick jedoch ein bool (checked-Argument des
+        # clicked-Signals). Daher explizit auf den Typ prüfen.
+        if not isinstance(item, QListWidgetItem):
             item = self.script_list.currentItem()
         if item is None:
             return
@@ -466,7 +469,10 @@ class ScriptsPluginsWindow(QDialog):
     # Ausführen: Plugin-Aktionen
 
     def _run_selected_action(self, item=None):
-        if item is None:
+        # Gleiche Vorsicht wie in _run_selected_script: Das Signal
+        # itemDoubleClicked liefert ein QListWidgetItem, das Signal
+        # clicked ein bool — hier darf das bool nicht als Item durchgehen.
+        if not isinstance(item, QListWidgetItem):
             item = self.action_list.currentItem()
         if item is None:
             return

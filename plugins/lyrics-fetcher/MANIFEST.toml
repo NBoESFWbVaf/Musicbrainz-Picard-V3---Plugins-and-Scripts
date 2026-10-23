@@ -8,7 +8,7 @@ description = "Lyrics fetcher using the public lrclib.net API. It's rewritten fr
 api = ["3.0"]
 
 # Optional fields
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Deniz Engin <dev@dilbil.im>"]
 maintainers = ["Deniz Engin <dev@dilbil.im>"]
 license = "GPL-3.0-or-later"

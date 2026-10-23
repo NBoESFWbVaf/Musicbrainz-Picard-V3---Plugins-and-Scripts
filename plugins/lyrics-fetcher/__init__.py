@@ -119,12 +119,34 @@ def process_response(api, album, metadata, task_id, data, reply, error):
                 lyrics = candidate
                 break
 
-        if lyrics is not None:
+        # album.loaded-Guard: Lief der Task ins Timeout und ist das Album
+        # bereits finalisiert (Scripts sind gelaufen), würden die Lyrics
+        # hier unbemerkt nachträglich in die Metadaten geschrieben, ohne
+        # dass die Tagging-Scripts sie jemals sehen. Dann lieber leer lassen.
+        if lyrics is not None and not album.loaded:
             metadata["lyrics"] = lyrics
     except AttributeError:
         logger.exception("api malformed response: %r", data)
     finally:
         api.complete_album_task(album, task_id)
+        # Picard 3.0.x kann abgelaufene Plugin-Tasks nicht selbst aus der
+        # Pending-Liste entfernen: check_timed_out_tasks() crasht beim
+        # abort() VOR dem pop() mit AttributeError ('PendingRequest' has
+        # no 'abort'). Der Task bliebe für immer in _pending_tasks und
+        # blockierte die Album-Finalisierung dauerhaft. Deshalb räumen wir
+        # eigene, abgelaufene Tasks hier selbst auf – erkennbar am
+        # Präfix "lyrics-fetcher_lyrics_" (Plugin-Name + task_id aus
+        # process_track). Spät eintreffende Antworten sind danach harmlos;
+        # complete_album_task loggt dann nur eine Warnung "unknown task".
+        try:
+            pending = getattr(album, '_pending_tasks', None)
+            if pending:
+                for pending_id, task_info in list(pending.items()):
+                    if (pending_id.startswith('lyrics-fetcher_lyrics_')
+                            and task_info.is_timed_out()):
+                        pending.pop(pending_id, None)
+        except Exception:
+            logger.exception("timed-out task cleanup failed for %r", album)
         # Workaround für PICARD-3513 (Picard 3.0.x): complete_album_task
         # stößt die Album-Finalisierung bei blockierenden Tasks nicht
         # erneut an – das Album würde nie fertig geladen werden. Deshalb
@@ -168,10 +190,10 @@ def process_track(api, track, metadata, track_node, release_node=None):
 
     # blocking=True hält die Album-Finalisierung (und damit die Ausführung
     # der Tagging-Scripts) an, bis die Lyrics geladen sind – die Scripts
-    # sehen die Lyrics also garantiert. Bewusst KEIN timeout: Picards
-    # check_timed_out_tasks() crasht in 3.0.x beim Abbrechen abgelaufener
-    # Tasks mit AttributeError ('PendingRequest' object has no attribute
-    # 'abort').
+    # sehen die Lyrics also garantiert. Hinweis: Picard setzt für
+    # blockierende Plugin-Tasks ohnehin einen Standard-Timeout (30 s);
+    # abgelaufene Tasks räumt der Handler in process_response selbst auf,
+    # weil Picards check_timed_out_tasks() in 3.0.x dabei crasht.
     api.add_album_task(
         album,
         task_id,

@@ -234,8 +234,26 @@ def fetch_lyrics_for_track(api, track):
     nothing to block or finalize – just fire the request and write the
     result into the track's metadata when it arrives.
     """
+    # lrclib braucht die echten MusicBrainz-Namen. track.metadata ist im
+    # manuellen Modus bereits durch die Tagging-Scripts gelaufen – hängt
+    # ein Script z. B. Marker wie " [album]" an den album-Tag, schlägt
+    # die lrclib-Suche mit 404 fehl. Die Album-Metadaten sind release-
+    # seitig und von Track-Scripts unberührt; artist/album kommen daher
+    # bevorzugt von dort (mit Fallback auf die Track-Metadaten).
+    track_meta = track.metadata
+    album_meta = getattr(track.album, 'metadata', None)
+    if album_meta is None:
+        album_meta = {}
     try:
-        query = _build_query(track.metadata)
+        (mins, secs) = map(int, track_meta["~length"].split(":"))
+        query = {
+            "artist_name": (album_meta.get("albumartist")
+                            or track_meta["artist"]),
+            "album_name": (album_meta.get("album")
+                           or track_meta["album"]),
+            "track_name": track_meta["title"],
+            "duration": mins * 60 + secs,  # accepts seconds only
+        }
     except Exception:
         api.logger.exception("cannot build lrclib query for %r", track)
         return

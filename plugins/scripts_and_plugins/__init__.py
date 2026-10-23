@@ -191,7 +191,7 @@ class ScriptsPluginsWindow(QDialog):
         )
 
         # --- Automatische Auswahl-Verfolgung ---
-        self._selection_signature = None
+        self._last_selection_signature = None
         self._needed_points = None
         self._use_poll_timer = False
         self._poll_timer = QTimer(self)
@@ -246,9 +246,9 @@ class ScriptsPluginsWindow(QDialog):
     def _check_selection_changed(self):
         objs = self._selected_objects()
         signature = self._selection_signature(objs)
-        if signature == self._selection_signature:
+        if signature == self._last_selection_signature:
             return
-        self._selection_signature = signature
+        self._last_selection_signature = signature
         needed = set()
         for obj in objs:
             needed.update(_points_for_object(obj))
@@ -318,7 +318,7 @@ class ScriptsPluginsWindow(QDialog):
     def refresh(self):
         """Vollständige Aktualisierung beider Listen und der Statuszeile."""
         objs = self._selected_objects()
-        self._selection_signature = self._selection_signature(objs)
+        self._last_selection_signature = self._selection_signature(objs)
         self._needed_points = set()
         for obj in objs:
             self._needed_points.update(_points_for_object(obj))

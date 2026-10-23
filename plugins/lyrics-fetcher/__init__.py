@@ -125,6 +125,14 @@ def process_response(api, album, metadata, task_id, data, reply, error):
         logger.exception("api malformed response: %r", data)
     finally:
         api.complete_album_task(album, task_id)
+        # Workaround für PICARD-3513 (Picard 3.0.x): complete_album_task
+        # stößt die Album-Finalisierung bei blockierenden Tasks nicht
+        # erneut an – das Album würde nie fertig geladen werden. Deshalb
+        # wie im bewährten v2-Muster zusätzlich _finalize_loading
+        # aufrufen; die internen Guards (self.loaded, has_critical_tasks)
+        # machen wiederholte oder verfrühte Aufrufe harmlos.
+        if album.id in api.tagger.albums:
+            album._finalize_loading(None)
 
 
 def process_track(api, track, metadata, track_node, release_node=None):

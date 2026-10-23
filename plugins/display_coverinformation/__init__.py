@@ -44,13 +44,11 @@ def _human_size(size):
 
 
 def _file_type(image):
-    """Bestimmt eine lesbare Dateityp-Bezeichnung aus Erweiterung und MIME-Typ."""
+    """Bestimmt die Dateiendung (z. B. 'JPG') als Dateityp-Angabe."""
     extension = (getattr(image, 'extension', None) or '').lstrip('.').upper()
     mimetype = getattr(image, 'mimetype', None) or ''
     if not extension and mimetype:
         extension = mimetype.split('/')[-1].upper()
-    if extension and mimetype:
-        return '%s (%s)' % (extension, mimetype)
     return extension or mimetype or '-'
 
 
@@ -90,33 +88,33 @@ class CoverInfoWidget(QtWidgets.QWidget):
     aller Bilder.
     """
 
-    def __init__(self, api, caption, parent=None):
+    def __init__(self, api, caption='', parent=None):
         super().__init__(parent)
         self._api = api
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(0)
 
-        self.caption_label = QtWidgets.QLabel(caption, self)
-        self.caption_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
-        caption_font = self.caption_label.font()
-        caption_font.setBold(True)
-        self.caption_label.setFont(caption_font)
-        layout.addWidget(self.caption_label)
+        if caption:
+            self.caption_label = QtWidgets.QLabel(caption, self)
+            caption_font = self.caption_label.font()
+            caption_font.setBold(True)
+            self.caption_label.setFont(caption_font)
+            layout.addWidget(self.caption_label)
 
         self.dimensions_label = QtWidgets.QLabel('', self)
         self.filesize_label = QtWidgets.QLabel('', self)
         self.filetype_label = QtWidgets.QLabel('', self)
         for label in (self.dimensions_label, self.filesize_label, self.filetype_label):
-            label.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
+            label.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
             label.setWordWrap(True)
             layout.addWidget(label)
 
         self.table = QtWidgets.QTableWidget(0, 3, self)
         self.table.setHorizontalHeaderLabels([
-            api.tr('col_dimensions', 'Bildmaße'),
-            api.tr('col_filesize', 'Dateigröße'),
-            api.tr('col_filetype', 'Dateityp'),
+            api.tr('col_dimensions', 'Maße'),
+            api.tr('col_filesize', 'Größe'),
+            api.tr('col_filetype', 'Typ'),
         ])
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
@@ -136,13 +134,13 @@ class CoverInfoWidget(QtWidgets.QWidget):
         image = images[0]
 
         self.dimensions_label.setText(
-            api.tr('dimensions_line', 'Bildmaße: {dimensions}',
+            api.tr('dimensions_line', 'Maße: {dimensions}',
                    dimensions=_dimensions_text(api, image)))
         self.filesize_label.setText(
-            api.tr('filesize_line', 'Dateigröße: {filesize}',
+            api.tr('filesize_line', 'Größe: {filesize}',
                    filesize=_filesize_text(api, image)))
         self.filetype_label.setText(
-            api.tr('filetype_line', 'Dateityp: {filetype}', filetype=_file_type(image)))
+            api.tr('filetype_line', 'Typ: {filetype}', filetype=_file_type(image)))
 
         # Bei mehreren Bildern alle Werte tabellarisch auflisten
         if len(images) > 1:
@@ -200,12 +198,11 @@ def enable(api: PluginApi):
     from picard.ui.coverartbox import CoverArtBox
 
     widgets = {
-        # Neues Coverbild (z. B. aus dem Internet geladen)
-        'new': CoverInfoWidget(
-            api, caption=api.tr('caption_new', 'Bildinformationen:'), parent=box),
-        # Original-Coverbild aus der Datei (lokal)
+        # Neues Coverbild (z. B. aus dem Internet geladen), ohne Überschrift
+        'new': CoverInfoWidget(api, parent=box),
+        # Original-Coverbild aus der Datei (lokal), mit kurzer Kennzeichnung
         'orig': CoverInfoWidget(
-            api, caption=api.tr('caption_orig', 'Bildinformationen (Original):'), parent=box),
+            api, caption=api.tr('caption_orig', 'Original:'), parent=box),
     }
 
     # Direkt unterhalb der jeweiligen Vorschaubilder in die Cover-Spalte

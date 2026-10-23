@@ -119,12 +119,114 @@ def pick_lyrics(api, data):
         return None
 
 
+def _length_seconds(metadata):
+    """Return a track's ~length (mm:ss) in seconds."""
+    (mins, secs) = map(int, metadata["~length"].split(":"))
+    return mins * 60 + secs
+
+
+# Anhängende eckige Marker am Ende des album-Tags, z. B. " [album]" aus
+# Tagging-Scripts (Release-Typ-Marker). Bei lrclib verhindern sie jeden
+# Treffer; die Suche (fallback) fängt Fehltreffer durch Über-Entfernen ab.
+_CLEAN_ALBUM_RE = re.compile(r'(?:\s*\[[^\]]*\])+\s*$')
+
+
+def _clean_album_name(name):
+    """Strip script-appended bracket markers from an album name."""
+    if not name:
+        return name
+    cleaned = _CLEAN_ALBUM_RE.sub("", name).strip()
+    return cleaned or name
+
+
+def _is_not_found(error):
+    """True if a lrclib request failed with 404 (track not found)."""
+    return "ContentNotFoundError" in str(error)
+
+
+# Wie weit darf die Dauer eines Such-Treffers vom Track abweichen, damit
+# er als Treffer gilt (Sekunden)?
+SEARCH_DURATION_TOLERANCE = 15
+
+
+def _best_search_match(candidates, target_seconds):
+    """Pick the search candidate whose duration is closest to the track.
+
+    Returns None if the response is empty or every candidate is further
+    than SEARCH_DURATION_TOLERANCE seconds off – a different song, not
+    a different pressing of the same one.
+    """
+    best = None
+    best_diff = None
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        duration = candidate.get("duration") or -1
+        diff = abs(duration - target_seconds)
+        if best is None or diff < best_diff:
+            best, best_diff = candidate, diff
+    if best is None or best_diff > SEARCH_DURATION_TOLERANCE:
+        return None
+    return best
+
+
+def _finish_album_task(api, album, task_id):
+    """Complete an album task incl. all Picard 3.0.x workarounds."""
+    logger = api.logger
+    api.complete_album_task(album, task_id)
+    # Picard 3.0.x kann abgelaufene Plugin-Tasks nicht selbst aus der
+    # Pending-Liste entfernen: check_timed_out_tasks() crasht beim
+    # abort() VOR dem pop() mit AttributeError ('PendingRequest' has
+    # no 'abort'). Der Task bliebe für immer in _pending_tasks und
+    # blockierte die Album-Finalisierung dauerhaft. Deshalb räumen wir
+    # eigene, abgelaufene Tasks hier selbst auf – erkennbar am
+    # Präfix "lyrics-fetcher_lyrics_" (Plugin-Name + task_id aus
+    # process_track). Spät eintreffende Antworten sind danach harmlos;
+    # complete_album_task loggt dann nur eine Warnung "unknown task".
+    try:
+        pending = getattr(album, '_pending_tasks', None)
+        if pending:
+            for pending_id, task_info in list(pending.items()):
+                if (pending_id.startswith('lyrics-fetcher_lyrics_')
+                        and task_info.is_timed_out()):
+                    pending.pop(pending_id, None)
+    except Exception:
+        logger.exception("timed-out task cleanup failed for %r", album)
+    # Workaround für PICARD-3513 (Picard 3.0.x): complete_album_task
+    # stößt die Album-Finalisierung bei blockierenden Tasks nicht
+    # erneut an – das Album würde nie fertig geladen werden. Deshalb
+    # wie im bewährten v2-Muster zusätzlich _finalize_loading
+    # aufrufen; die internen Guards (self.loaded, has_critical_tasks)
+    # machen wiederholte oder verfrühte Aufrufe harmlos.
+    if album.id in api.tagger.albums:
+        # try/except: _finalize_loading berührt Picard-Interna, die in
+        # 3.0.x teils fehlerhaft sind (z. B. check_timed_out_tasks) –
+        # ein Fehler dort darf Picard niemals mitreißen.
+        try:
+            album._finalize_loading(None)
+        except Exception:
+            logger.exception("finalize workaround failed for %r", album)
+
+
 def process_response(api, album, metadata, task_id, data, reply, error):
     """Process the lrclib.net API response and complete the album task."""
     logger = api.logger
+    # follow_up: bei 404 wird als zweitem Versuch die lrclib-Suche
+    # gestartet; der Task bleibt dann offen, bis die Suche geantwortet
+    # hat, und darf hier noch nicht abgeschlossen werden.
+    follow_up = False
     try:
         if error:
-            logger.error("lrclib request failed: %r", error)
+            if _is_not_found(error) and not album.loaded:
+                follow_up = True
+                logger.debug("lrclib has no exact match, trying search fallback")
+                try:
+                    _start_task_search(api, album, metadata, task_id)
+                except Exception:
+                    logger.exception("starting lrclib search failed for %r", album)
+                    follow_up = False
+            else:
+                logger.error("lrclib request failed: %r", error)
             return
 
         logger.debug("starting to process")
@@ -141,49 +243,57 @@ def process_response(api, album, metadata, task_id, data, reply, error):
     except AttributeError:
         logger.exception("api malformed response: %r", data)
     finally:
-        api.complete_album_task(album, task_id)
-        # Picard 3.0.x kann abgelaufene Plugin-Tasks nicht selbst aus der
-        # Pending-Liste entfernen: check_timed_out_tasks() crasht beim
-        # abort() VOR dem pop() mit AttributeError ('PendingRequest' has
-        # no 'abort'). Der Task bliebe für immer in _pending_tasks und
-        # blockierte die Album-Finalisierung dauerhaft. Deshalb räumen wir
-        # eigene, abgelaufene Tasks hier selbst auf – erkennbar am
-        # Präfix "lyrics-fetcher_lyrics_" (Plugin-Name + task_id aus
-        # process_track). Spät eintreffende Antworten sind danach harmlos;
-        # complete_album_task loggt dann nur eine Warnung "unknown task".
-        try:
-            pending = getattr(album, '_pending_tasks', None)
-            if pending:
-                for pending_id, task_info in list(pending.items()):
-                    if (pending_id.startswith('lyrics-fetcher_lyrics_')
-                            and task_info.is_timed_out()):
-                        pending.pop(pending_id, None)
-        except Exception:
-            logger.exception("timed-out task cleanup failed for %r", album)
-        # Workaround für PICARD-3513 (Picard 3.0.x): complete_album_task
-        # stößt die Album-Finalisierung bei blockierenden Tasks nicht
-        # erneut an – das Album würde nie fertig geladen werden. Deshalb
-        # wie im bewährten v2-Muster zusätzlich _finalize_loading
-        # aufrufen; die internen Guards (self.loaded, has_critical_tasks)
-        # machen wiederholte oder verfrühte Aufrufe harmlos.
-        if album.id in api.tagger.albums:
-            # try/except: _finalize_loading berührt Picard-Interna, die in
-            # 3.0.x teils fehlerhaft sind (z. B. check_timed_out_tasks) –
-            # ein Fehler dort darf Picard niemals mitreißen.
-            try:
-                album._finalize_loading(None)
-            except Exception:
-                logger.exception("finalize workaround failed for %r", album)
+        if not follow_up:
+            _finish_album_task(api, album, task_id)
+
+
+def _start_task_search(api, album, metadata, task_id):
+    """Second try while the album task is open: search lrclib by artist
+    and track only, ignoring the (possibly script-decorated) album tag."""
+    query = {
+        "artist_name": metadata["albumartist"] or metadata["artist"],
+        "track_name": metadata["title"],
+    }
+    logger = api.logger
+    logger.debug("lrclib search, query: %r", query)
+    api.web_service.get_url(
+        url="https://lrclib.net/api/search",
+        handler=partial(task_search_response, api, album, metadata, task_id),
+        parse_response_type="json",
+        queryargs=query,
+    )
+
+
+def task_search_response(api, album, metadata, task_id, data, reply, error):
+    """Handle the search fallback for an album task and finish the task."""
+    logger = api.logger
+    try:
+        if error:
+            logger.error("lrclib search failed: %r", error)
+            return
+        candidates = data if isinstance(data, list) else []
+        logger.debug("lrclib search returned %d candidate(s)", len(candidates))
+        best = _best_search_match(candidates, _length_seconds(metadata))
+        if best is None:
+            logger.debug("no usable search result (empty or duration mismatch)")
+            return
+        lyrics = pick_lyrics(api, best)
+        # album.loaded-Guard wie in process_response.
+        if lyrics is not None and not album.loaded:
+            metadata["lyrics"] = lyrics
+    except Exception:
+        logger.exception("lrclib search fallback failed for %r", album)
+    finally:
+        _finish_album_task(api, album, task_id)
 
 
 def _build_query(metadata):
     """Build the lrclib.net /api/get query from a track's metadata."""
-    (mins, secs) = map(int, metadata["~length"].split(":"))
     return {
         "artist_name": metadata["albumartist"] or metadata["artist"],
         "album_name": metadata["album"],
         "track_name": metadata["title"],
-        "duration": mins * 60 + secs,  # accepts seconds only
+        "duration": _length_seconds(metadata),  # accepts seconds only
     }
 
 
@@ -234,25 +344,21 @@ def fetch_lyrics_for_track(api, track):
     nothing to block or finalize – just fire the request and write the
     result into the track's metadata when it arrives.
     """
-    # lrclib braucht die echten MusicBrainz-Namen. track.metadata ist im
-    # manuellen Modus bereits durch die Tagging-Scripts gelaufen – hängt
-    # ein Script z. B. Marker wie " [album]" an den album-Tag, schlägt
-    # die lrclib-Suche mit 404 fehl. Die Album-Metadaten sind release-
-    # seitig und von Track-Scripts unberührt; artist/album kommen daher
-    # bevorzugt von dort (mit Fallback auf die Track-Metadaten).
+    # lrclib braucht die echten Namen. track.metadata ist im manuellen
+    # Modus bereits durch die Tagging-Scripts gelaufen – Picard wendet
+    # die Scripts auch auf die Album-Metadaten an (nachgewiesen im
+    # Nutzer-Log: album.metadata enthielt denselben " [album]"-Marker),
+    # deshalb helfen release-seitige Werte hier nicht. Stattdessen:
+    # angehängte eckige Marker am Album-Namen entfernen; läuft die
+    # Anfrage trotzdem auf 404, greift der Such-Fallback in
+    # fetch_response (Artist + Titel + Dauer-Best-Match).
     track_meta = track.metadata
-    album_meta = getattr(track.album, 'metadata', None)
-    if album_meta is None:
-        album_meta = {}
     try:
-        (mins, secs) = map(int, track_meta["~length"].split(":"))
         query = {
-            "artist_name": (album_meta.get("albumartist")
-                            or track_meta["artist"]),
-            "album_name": (album_meta.get("album")
-                           or track_meta["album"]),
+            "artist_name": track_meta["albumartist"] or track_meta["artist"],
+            "album_name": _clean_album_name(track_meta["album"]),
             "track_name": track_meta["title"],
-            "duration": mins * 60 + secs,  # accepts seconds only
+            "duration": _length_seconds(track_meta),  # accepts seconds only
         }
     except Exception:
         api.logger.exception("cannot build lrclib query for %r", track)
@@ -266,25 +372,72 @@ def fetch_lyrics_for_track(api, track):
     )
 
 
+def _apply_lyrics(api, track, lyrics):
+    """Write fetched lyrics into the track's metadata and update the view."""
+    if lyrics is None:
+        return
+    track.metadata["lyrics"] = lyrics
+    # Ansicht (Baum-Item/Metadaten-Box) aktualisieren; interne Fehler
+    # dabei dürfen Picard nicht mitreißen.
+    try:
+        track.update()
+    except Exception:
+        api.logger.exception("updating track view failed for %r", track)
+
+
 def fetch_response(api, track, data, reply, error):
     """Handle a manual lyrics lookup: write into track.metadata, update UI."""
     logger = api.logger
     try:
         if error:
-            logger.error("lrclib request failed: %r", error)
+            if _is_not_found(error):
+                # lrclib kennt den Track nicht unter den exakten Angaben
+                # (z. B. weil Scripts den album-Tag verändert haben oder
+                # der MB-Release-Name abweicht) – zweiter Versuch über
+                # die Suche mit Artist + Titel + Dauer-Best-Match.
+                logger.debug("lrclib has no exact match, trying search fallback")
+                _start_manual_search(api, track)
+            else:
+                logger.error("lrclib request failed: %r", error)
             return
-        lyrics = pick_lyrics(api, data)
-        if lyrics is None:
-            return
-        track.metadata["lyrics"] = lyrics
-        # Ansicht (Baum-Item/Metadaten-Box) aktualisieren; interne Fehler
-        # dabei dürfen Picard nicht mitreißen.
-        try:
-            track.update()
-        except Exception:
-            logger.exception("updating track view failed for %r", track)
+        _apply_lyrics(api, track, pick_lyrics(api, data))
     except Exception:
         logger.exception("manual lyrics fetch failed for %r", track)
+
+
+def _start_manual_search(api, track):
+    """Second try for a manual fetch: search lrclib by artist and track
+    only, ignoring the (possibly script-decorated) album tag."""
+    metadata = track.metadata
+    query = {
+        "artist_name": metadata["albumartist"] or metadata["artist"],
+        "track_name": metadata["title"],
+    }
+    api.logger.debug("lrclib search, query: %r", query)
+    api.web_service.get_url(
+        url="https://lrclib.net/api/search",
+        handler=partial(manual_search_response, api, track),
+        parse_response_type="json",
+        queryargs=query,
+    )
+
+
+def manual_search_response(api, track, data, reply, error):
+    """Handle the search fallback for a manual lyrics lookup."""
+    logger = api.logger
+    try:
+        if error:
+            logger.error("lrclib search failed: %r", error)
+            return
+        candidates = data if isinstance(data, list) else []
+        logger.debug("lrclib search returned %d candidate(s)", len(candidates))
+        best = _best_search_match(candidates, _length_seconds(track.metadata))
+        if best is None:
+            logger.debug("no usable search result (empty or duration mismatch)")
+            return
+        _apply_lyrics(api, track, pick_lyrics(api, best))
+    except Exception:
+        logger.exception("manual lyrics search failed for %r", track)
 
 
 class FetchLyricsAction(BaseAction):

@@ -8,7 +8,7 @@ description = "Lyrics fetcher using the public lrclib.net API. Prefers synced ly
 api = ["3.0"]
 
 # Optional fields
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Deniz Engin <dev@dilbil.im>"]
 maintainers = ["Deniz Engin <dev@dilbil.im>"]
 license = "GPL-3.0-or-later"
@@ -28,7 +28,8 @@ are prioritized.
 
 **Options** (Options → Plugins → Picard Sözler):
 
-- Skip lyrics written in Asian scripts. The blocked script groups
+- By default, lyrics written in Asian scripts are not loaded at all; loading
+  them anyway can be selected instead. The blocked script groups
   (Chinese/Japanese, Korean, Southeast Asian, Indian) can be toggled
   individually.
 - Optionally delete blocked lyrics left over in files when saving.

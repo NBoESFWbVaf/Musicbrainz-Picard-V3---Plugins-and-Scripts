@@ -24,7 +24,8 @@ from picard.plugin3.api import OptionsPage
 
 # Plugin-Optionen mit Defaults (werden in enable() registriert).
 PLUGIN_OPTIONS = {
-    'skip_asian_lyrics': True,
+    # 'skip' = blockierte Lyrics gar nicht laden, 'load' = trotzdem laden
+    'blocked_lyrics_action': 'skip',
     'block_cjk': True,
     'block_hangul': True,
     'block_sea': True,
@@ -80,7 +81,8 @@ def _get_option(config, name, default):
 def has_blocked_script(api, text):
     """Return True if the text contains a character of a blocked script."""
     config = api.plugin_config
-    if not _get_option(config, 'skip_asian_lyrics', True):
+    if _get_option(config, 'blocked_lyrics_action', 'skip') != 'skip':
+        # 'load': blockierte Lyrics sind ausdrücklich erwünscht
         return False
     blocked = tuple(name for name in SCRIPT_RANGES if _get_option(config, name, True))
     if not blocked:
@@ -182,15 +184,21 @@ class SozlerOptionsPage(OptionsPage):
 
         filter_group = QtWidgets.QGroupBox("Lyrics filter")
         filter_layout = QtWidgets.QVBoxLayout(filter_group)
-        self.skip_asian = QtWidgets.QCheckBox("Skip lyrics written in Asian scripts")
+        self.action_label = QtWidgets.QLabel(
+            "When fetched lyrics are written in a blocked script:")
+        self.action_combo = QtWidgets.QComboBox()
+        self.action_combo.addItem("Skip them — do not load such lyrics at all", 'skip')
+        self.action_combo.addItem("Load them anyway", 'load')
+        self.action_combo.currentIndexChanged.connect(self._update_enabled)
         self.block_cjk = QtWidgets.QCheckBox("Chinese / Japanese (CJK characters) — 汉字 / カナ")
         self.block_hangul = QtWidgets.QCheckBox("Korean (Hangul) — 한글")
         self.block_sea = QtWidgets.QCheckBox("Thai, Lao, Khmer, Tibetan, Burmese, Mongolian")
         self.block_indic = QtWidgets.QCheckBox("Indian scripts (Devanagari, Tamil, Sinhala, …)")
-        for checkbox in (self.skip_asian, self.block_cjk, self.block_hangul,
+        filter_layout.addWidget(self.action_label)
+        filter_layout.addWidget(self.action_combo)
+        for checkbox in (self.block_cjk, self.block_hangul,
                          self.block_sea, self.block_indic):
             filter_layout.addWidget(checkbox)
-        self.skip_asian.toggled.connect(self._update_enabled)
         layout.addWidget(filter_group)
 
         self.clear_existing = QtWidgets.QCheckBox(
@@ -200,14 +208,16 @@ class SozlerOptionsPage(OptionsPage):
         layout.addStretch()
 
     def _update_enabled(self):
-        enabled = self.skip_asian.isChecked()
+        enabled = self.action_combo.currentData() == 'skip'
         for checkbox in (self.block_cjk, self.block_hangul,
                          self.block_sea, self.block_indic):
             checkbox.setEnabled(enabled)
 
     def load(self):
         config = self.api.plugin_config
-        self.skip_asian.setChecked(_get_option(config, 'skip_asian_lyrics', True))
+        action = _get_option(config, 'blocked_lyrics_action', 'skip')
+        index = self.action_combo.findData(action)
+        self.action_combo.setCurrentIndex(index if index >= 0 else 0)
         self.block_cjk.setChecked(_get_option(config, 'block_cjk', True))
         self.block_hangul.setChecked(_get_option(config, 'block_hangul', True))
         self.block_sea.setChecked(_get_option(config, 'block_sea', True))
@@ -217,7 +227,7 @@ class SozlerOptionsPage(OptionsPage):
 
     def save(self):
         config = self.api.plugin_config
-        config['skip_asian_lyrics'] = self.skip_asian.isChecked()
+        config['blocked_lyrics_action'] = self.action_combo.currentData()
         config['block_cjk'] = self.block_cjk.isChecked()
         config['block_hangul'] = self.block_hangul.isChecked()
         config['block_sea'] = self.block_sea.isChecked()

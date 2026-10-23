@@ -18,12 +18,15 @@
 # of the License, or (at your option) any later version.
 # See <https://www.gnu.org/licenses/gpl-2.0.html>.
 
+import threading
+
 from PyQt6 import (
     QtCore,
     QtWidgets,
 )
 
 from picard.plugin3.api import PluginApi
+from picard.util.thread import to_main
 
 PLUGIN_NAME = 'Display Coverinformation'
 
@@ -222,11 +225,26 @@ def _insert_after(box_layout, anchor, widget):
 
 
 def enable(api: PluginApi):
-    """Enable the plugin: insert the info widgets below the preview images."""
+    """Enable the plugin: insert the info widgets below the preview images.
+
+    Picard installs, updates and reloads plugins asynchronously in a
+    background thread. Qt widgets may only be created and managed in the
+    main (GUI) thread, otherwise they show up as separate top-level
+    windows. If enable() is called from another thread, defer the entire
+    setup to the main thread.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        to_main(_enable_in_main, api)
+    else:
+        _enable_in_main(api)
+
+
+def _enable_in_main(api: PluginApi):
+    """Actual setup, always executed in the main thread."""
     # If any remains of a previous enable() call are still present (e.g.
     # after re-enabling without a restart), clean them up first.
     if _state:
-        disable()
+        _disable_in_main()
 
     box = getattr(api.tagger.window, 'cover_art_box', None)
     if box is None:
@@ -295,7 +313,20 @@ def enable(api: PluginApi):
 
 
 def disable():
-    """Disable the plugin: remove the widgets and revert the patch."""
+    """Disable the plugin: remove the widgets and revert the patch.
+
+    Like enable(), this can be called from a background thread (e.g. on
+    update, reload or uninstall); the widget cleanup is deferred to the
+    main thread in that case.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        to_main(_disable_in_main)
+    else:
+        _disable_in_main()
+
+
+def _disable_in_main():
+    """Actual cleanup, always executed in the main thread."""
     from picard.ui.coverartbox import CoverArtBox
 
     patched = _state.get('patched_update_display')

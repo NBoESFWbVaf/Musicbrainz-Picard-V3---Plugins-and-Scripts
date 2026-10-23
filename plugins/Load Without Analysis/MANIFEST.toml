@@ -1,0 +1,30 @@
+# MANIFEST.toml for the Picard 3 plugin "Load Without Analysis"
+# Picard plugin manifest specification: docs/PLUGINSV3/MANIFEST.md
+
+uuid = "923744cf-7691-40b2-8a15-8ab282fba09f"
+name = "Load Without Analysis"
+description = "Load clusters directly into the album pane without a MusicBrainz lookup or AcoustID analysis"
+long_description = """
+Adds a context menu entry to album clusters in the left-hand pane that loads
+the selected clusters directly into the right-hand album pane — without
+querying MusicBrainz and without AcoustID fingerprint analysis.
+
+Each cluster becomes a new local album. The tags already present in your
+files are kept: every file becomes a track of the album, using the album
+and artist information of the cluster.
+
+Usage:
+
+1. Cluster your files (Tools ‣ Cluster), if not already done
+2. Select one or more clusters (albums) in the left-hand pane
+3. Right-click and choose "Load Without Analysis"
+"""
+api = ["3.0"]
+version = ["0.0.1"]
+authors = ["Mirakuli Teebaum"]
+license = "GPL-2.0-or-later"
+license_url = "https://www.gnu.org/licenses/gpl-2.0.html"
+categories = ["ui"]
+
+[description_i18n]
+de = "Lädt Cluster direkt in die Alben-Ansicht, ohne MusicBrainz-Abfrage und ohne AcoustID-Analyse"

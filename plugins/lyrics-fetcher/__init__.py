@@ -375,8 +375,10 @@ def fetch_lyrics_for_track(api, track):
 def _apply_lyrics(api, track, lyrics):
     """Write fetched lyrics into the track's metadata and update the view."""
     if lyrics is None:
+        api.logger.debug("no usable lyrics; track left untouched")
         return
     track.metadata["lyrics"] = lyrics
+    api.logger.debug("lyrics applied to track")
     # Ansicht (Baum-Item/Metadaten-Box) aktualisieren; interne Fehler
     # dabei dürfen Picard nicht mitreißen.
     try:
@@ -400,6 +402,10 @@ def fetch_response(api, track, data, reply, error):
             else:
                 logger.error("lrclib request failed: %r", error)
             return
+        # Debug-Logging wie im Auto-Pfad (process_response): Ohne diese
+        # Zeile ist ein erfolgreicher manueller Fetch im Log unsichtbar.
+        logger.debug("manual fetch: got response for %r (lrclib id %r)",
+                      data.get("trackName"), data.get("id"))
         _apply_lyrics(api, track, pick_lyrics(api, data))
     except Exception:
         logger.exception("manual lyrics fetch failed for %r", track)

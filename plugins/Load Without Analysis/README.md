@@ -1,0 +1,1 @@
+This plugin loads an album into the main window without querying the MusicBrainz database. This is helpful if you want to use just one window for editing, instead of constantly adjusting the window width.

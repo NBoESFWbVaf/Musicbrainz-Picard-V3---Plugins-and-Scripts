@@ -144,6 +144,18 @@ def _is_not_found(error):
     return "ContentNotFoundError" in str(error)
 
 
+def _is_parse_error(error):
+    """True if lrclib sent data that is not valid JSON (server glitch).
+
+    Picard's webservice parses the response before the handler runs and
+    hands a JSONDecodeError to the handler on failure. lrclib does that
+    occasionally with HTTP 200 (truncated or error-page body), so this
+    must not be treated as a fatal error – the search fallback usually
+    still finds the track.
+    """
+    return "JSONDecodeError" in str(error)
+
+
 # Wie weit darf die Dauer eines Such-Treffers vom Track abweichen, damit
 # er als Treffer gilt (Sekunden)?
 SEARCH_DURATION_TOLERANCE = 15
@@ -220,6 +232,17 @@ def process_response(api, album, metadata, task_id, data, reply, error):
             if _is_not_found(error) and not album.loaded:
                 follow_up = True
                 logger.debug("lrclib has no exact match, trying search fallback")
+                try:
+                    _start_task_search(api, album, metadata, task_id)
+                except Exception:
+                    logger.exception("starting lrclib search failed for %r", album)
+                    follow_up = False
+            elif _is_parse_error(error) and not album.loaded:
+                # lrclib hat kaputtes JSON geliefert (HTTP 200, aber kein
+                # gültiger Body) – gleicher Fallback wie bei 404, statt
+                # die Lyrics einfach aufzugeben.
+                follow_up = True
+                logger.debug("lrclib sent malformed data, trying search fallback")
                 try:
                     _start_task_search(api, album, metadata, task_id)
                 except Exception:
@@ -414,6 +437,12 @@ def fetch_response(api, track, data, reply, error):
                 # der MB-Release-Name abweicht) – zweiter Versuch über
                 # die Suche mit Artist + Titel + Dauer-Best-Match.
                 logger.debug("lrclib has no exact match, trying search fallback")
+                _start_manual_search(api, track)
+            elif _is_parse_error(error):
+                # lrclib hat kaputtes JSON geliefert (HTTP 200, aber kein
+                # gültiger Body) – gleicher Fallback wie bei 404, statt
+                # die Lyrics einfach aufzugeben.
+                logger.debug("lrclib sent malformed data, trying search fallback")
                 _start_manual_search(api, track)
             else:
                 logger.error("lrclib request failed: %r", error)

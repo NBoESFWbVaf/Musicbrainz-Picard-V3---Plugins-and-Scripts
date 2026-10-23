@@ -27,6 +27,8 @@ class ScriptsPluginsWindow(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Scripts & Plugins")
         self.setMinimumSize(420, 320)
+        # Maximieren-Schaltfläche in der Titelleiste aktivieren.
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
 
         layout = QVBoxLayout(self)
         label = QLabel(

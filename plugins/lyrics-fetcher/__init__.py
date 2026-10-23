@@ -33,6 +33,9 @@ PLUGIN_OPTIONS = {
     'block_sea': True,
     'block_indic': True,
     'clear_blocked_lyrics': True,
+    # Abstand zwischen zwei manuellen lrclib-Requests in Sekunden.
+    # Unter 1 s drosselt lrclib anonyme Clients mit 503 (ServerOverloaded).
+    'request_interval': 1.0,
 }
 
 # Unicode-Bereiche der Schriftgruppen, die in den Optionen blockierbar sind.
@@ -497,7 +500,8 @@ class FetchLyricsAction(BaseAction):
     Registered for albums (fetches all tracks of each selected album) and
     for individual tracks. Available in both lyrics_mode settings – in
     'auto' mode it serves as an explicit re-fetch. Requests are staggered
-    (one per second) so lrclib's rate limiting does not kick in.
+    (one per second by default, configurable via the "Delay between
+    requests" option) so lrclib's rate limiting does not kick in.
     """
 
     TITLE = "Fetch lyrics from lrclib.net"
@@ -524,11 +528,20 @@ class FetchLyricsAction(BaseAction):
             "lyrics-fetcher: manual fetch started for %d track(s)", len(tracks))
         # lrclib drosselt massiv parallele anonyme Requests (503, im
         # Nutzer-Log nachgewiesen). Deshalb Requests staffeln: genau
-        # einer pro Sekunde, egal wie viele Tracks markiert sind.
+        # einer pro request_interval Sekunden (ab 1.1.7 konfigurierbar,
+        # Default 1 s), egal wie viele Tracks markiert sind.
         # singleShot läuft in Picards Qt-Event-Loop – kein extra Thread.
+        interval = _get_option(api.plugin_config, 'request_interval', 1.0)
+        try:
+            interval = max(float(interval), 1.0)
+        except (TypeError, ValueError):
+            # ungültiger/ungesetzter Wert → Default-Takt 1 s
+            interval = 1.0
+        api.logger.debug("manual fetch stagger interval: %.1f s", interval)
+        delay_ms = int(interval * 1000)
         for index, track in enumerate(tracks):
             QtCore.QTimer.singleShot(
-                index * 1000, partial(fetch_lyrics_for_track, api, track))
+                index * delay_ms, partial(fetch_lyrics_for_track, api, track))
 
 
 def clear_blocked_lyrics(api, file):
@@ -561,6 +574,17 @@ class LyricsFetcherOptionsPage(OptionsPage):
         self.mode_combo.addItem("Manually via the context menu (recommended)", 'manual')
         mode_layout.addWidget(self.mode_label)
         mode_layout.addWidget(self.mode_combo)
+        self.interval_label = QtWidgets.QLabel("Delay between requests (seconds):")
+        self.interval_spin = QtWidgets.QDoubleSpinBox()
+        self.interval_spin.setRange(1.0, 10.0)
+        self.interval_spin.setSingleStep(0.5)
+        self.interval_spin.setDecimals(1)
+        self.interval_spin.setSuffix(" s")
+        self.interval_spin.setToolTip(
+            "lrclib.net throttles anonymous clients (HTTP 503) when requests "
+            "arrive too fast. 1 s is the minimum; 2 s avoids most 503 retries.")
+        mode_layout.addWidget(self.interval_label)
+        mode_layout.addWidget(self.interval_spin)
         layout.addWidget(mode_group)
 
         filter_group = QtWidgets.QGroupBox("Lyrics filter")
@@ -600,6 +624,13 @@ class LyricsFetcherOptionsPage(OptionsPage):
         index = self.mode_combo.findData(mode)
         # ungültiger/ungesetzter Wert → 'manual' (Index 1)
         self.mode_combo.setCurrentIndex(index if index >= 0 else 1)
+        interval = _get_option(config, 'request_interval', 1.0)
+        try:
+            interval = max(float(interval), 1.0)
+        except (TypeError, ValueError):
+            interval = 1.0
+        # obere Spin-Grenze nicht überschreiten (Werte >10 bleiben beim Laden wirksam, werden aber angepasst)
+        self.interval_spin.setValue(min(interval, 10.0))
         action = _get_option(config, 'blocked_lyrics_action', 'skip')
         index = self.action_combo.findData(action)
         self.action_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -613,6 +644,7 @@ class LyricsFetcherOptionsPage(OptionsPage):
     def save(self):
         config = self.api.plugin_config
         config['lyrics_mode'] = self.mode_combo.currentData()
+        config['request_interval'] = self.interval_spin.value()
         config['blocked_lyrics_action'] = self.action_combo.currentData()
         config['block_cjk'] = self.block_cjk.isChecked()
         config['block_hangul'] = self.block_hangul.isChecked()

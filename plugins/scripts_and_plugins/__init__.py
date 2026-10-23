@@ -175,17 +175,28 @@ class ScriptsPluginsWindow(QDialog):
         # --- Protokollfenster ---
         self.log_view = QTextEdit(self)
         self.log_view.setReadOnly(True)
-        self.log_view.setMaximumHeight(140)
+        self.log_view.setMinimumHeight(60)
         self.log_view.setPlaceholderText(
-            "Protokoll der ausgeführten Scripte und Aktionen …"
+            "Start, Erfolg und Fehlschlag ausgeführter Scripte und Aktionen …"
         )
         log_box = QGroupBox("Protokoll", self)
         log_layout = QVBoxLayout(log_box)
         log_layout.addWidget(self.log_view)
 
+        # Vertikaler Splitter zwischen Listen und Protokoll: Die Höhe
+        # des Protokollfensters lässt sich mit der Maus frei verstellen,
+        # ohne dass eines der beiden Bereiche ganz verschwindet.
+        main_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        main_splitter.addWidget(splitter)
+        main_splitter.addWidget(log_box)
+        main_splitter.setStretchFactor(0, 1)
+        main_splitter.setStretchFactor(1, 0)
+        main_splitter.setCollapsible(0, False)
+        main_splitter.setCollapsible(1, False)
+        main_splitter.setSizes([520, 160])
+
         layout = QVBoxLayout(self)
-        layout.addWidget(splitter, 1)
-        layout.addWidget(log_box)
+        layout.addWidget(main_splitter, 1)
         layout.addLayout(button_layout)
         layout.addWidget(self._status)
 
@@ -227,8 +238,17 @@ class ScriptsPluginsWindow(QDialog):
     def _set_status(self, text):
         self._status.setText(text)
 
+    def _log_message(self, text):
+        """Startmeldung im Protokoll festhalten.
+
+        Standardfarbe, kein Symbol — die Bewertung der Ausführung
+        erfolgt erst mit der Abschlussmeldung über _log_result().
+        """
+        timestamp = QDateTime.currentDateTime().toString("HH:mm:ss")
+        self.log_view.append("[%s] %s" % (timestamp, text))
+
     def _log_result(self, success, text):
-        """Erfolg/Fehlschlag im Protokollfenster festhalten."""
+        """Abschlussmeldung im Protokoll festhalten."""
         symbol = "✓" if success else "✗"
         color = "green" if success else "red"
         timestamp = QDateTime.currentDateTime().toString("HH:mm:ss")
@@ -440,6 +460,7 @@ class ScriptsPluginsWindow(QDialog):
                 "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
             )
             return
+        self._log_message("Script „%s“ gestartet …" % script.name)
         try:
             changed, failed = self._apply_script(script, objs)
         except Exception:
@@ -487,6 +508,9 @@ class ScriptsPluginsWindow(QDialog):
                 "Die aktuelle Auswahl enthält keine Objekte für diese Aktion.",
             )
             return
+        self._log_message(
+            "Aktion „%s“ gestartet …" % _action_title(action_class)
+        )
         try:
             # Gleicher Instanziierungsweg wie im Kontextmenü von Picard.
             instance = action_class()

@@ -1,0 +1,28 @@
+# MANIFEST.toml for the "Stop albumtasks" plugin (Picard plugin API v3).
+# Specification: https://picard-docs.musicbrainz.org/en/extending/plugins.html
+
+# Required fields
+uuid = "6c02cd34-9702-4494-b56c-b789e947ecfa"
+name = "Stop albumtasks"
+description = "Adds a context menu action to albums that stops the processing of one or all selected albums and deletes all associated tasks."
+api = ["3.0"]
+
+# Optional fields
+version = "0.0.1"
+authors = ["Mirakuli Teebaum"]
+license = "GPL-2.0-or-later"
+license_url = "https://www.gnu.org/licenses/gpl-2.0.html"
+categories = ["ui"]
+long_description = """
+Adds a **Stop albumtasks** action to the album context menu (right-click
+on an album in the left pane). It interrupts the current processing of the
+selected album(s) and deletes all tasks associated with them:
+
+- Pending album tasks (release, track, recording, cover art and genre lookups)
+- Queued AcoustID fingerprint analyses of the album's files
+- Pending file lookups
+
+Select a single album to stop only that album, or select multiple albums
+(e.g. with Ctrl+A) to stop all loaded albums at once. A stopped album can
+be loaded again at any time via "Refresh".
+"""

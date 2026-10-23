@@ -17,7 +17,7 @@ in MANIFEST.toml; the v2 PLUGIN_* constants are no longer used.
 from functools import lru_cache, partial
 import re
 
-from PyQt6 import QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 from picard.plugin3.api import Album, BaseAction, OptionsPage, Track
 
@@ -445,7 +445,8 @@ class FetchLyricsAction(BaseAction):
 
     Registered for albums (fetches all tracks of each selected album) and
     for individual tracks. Available in both lyrics_mode settings – in
-    'auto' mode it serves as an explicit re-fetch.
+    'auto' mode it serves as an explicit re-fetch. Requests are staggered
+    (one per second) so lrclib's rate limiting does not kick in.
     """
 
     TITLE = "Fetch lyrics from lrclib.net"
@@ -458,10 +459,25 @@ class FetchLyricsAction(BaseAction):
                 tracks.extend(obj.tracks)
             elif isinstance(obj, Track):
                 tracks.append(obj)
+        # Doppelte Requests vermeiden (z. B. Album plus einzelner Track
+        # desselben Albums markiert). Dedupe über id(), weil nicht
+        # garantiert ist, dass Track-Objekte hashbar sind.
+        seen = set()
+        unique = []
         for track in tracks:
-            fetch_lyrics_for_track(api, track)
+            if id(track) not in seen:
+                seen.add(id(track))
+                unique.append(track)
+        tracks = unique
         api.logger.info(
             "lyrics-fetcher: manual fetch started for %d track(s)", len(tracks))
+        # lrclib drosselt massiv parallele anonyme Requests (503, im
+        # Nutzer-Log nachgewiesen). Deshalb Requests staffeln: genau
+        # einer pro Sekunde, egal wie viele Tracks markiert sind.
+        # singleShot läuft in Picards Qt-Event-Loop – kein extra Thread.
+        for index, track in enumerate(tracks):
+            QtCore.QTimer.singleShot(
+                index * 1000, partial(fetch_lyrics_for_track, api, track))
 
 
 def clear_blocked_lyrics(api, file):

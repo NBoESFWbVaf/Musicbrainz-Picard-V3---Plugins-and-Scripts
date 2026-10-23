@@ -19,11 +19,13 @@ import re
 
 from PyQt6 import QtWidgets
 
-from picard.plugin3.api import OptionsPage
+from picard.plugin3.api import Album, BaseAction, OptionsPage, Track
 
 
 # Plugin-Optionen mit Defaults (werden in enable() registriert).
 PLUGIN_OPTIONS = {
+    # 'auto' = schon beim Analysieren laden, 'manual' = nur Kontextmenü
+    'lyrics_mode': 'manual',
     # 'skip' = blockierte Lyrics gar nicht laden, 'load' = trotzdem laden
     'blocked_lyrics_action': 'skip',
     'block_cjk': True,
@@ -90,6 +92,33 @@ def has_blocked_script(api, text):
     return bool(_build_re(blocked).search(text))
 
 
+def pick_lyrics(api, data):
+    """Pick the best usable lyrics candidate from an lrclib API response.
+
+    Returns the lyrics string or None (instrumental track, no lyrics in
+    the database, or all candidates blocked by the script filter).
+    """
+    logger = api.logger
+    try:
+        if data.get("instrumental"):
+            logger.debug("instrumental track; skipping")
+            return None
+        # Fallbacks to plain, ie, unsynced lyrics. Candidates containing
+        # blocked scripts (see plugin options) are skipped and the next
+        # candidate is tried instead.
+        for candidate in (data.get("syncedLyrics"), data.get("plainLyrics")):
+            if not candidate:
+                continue
+            if has_blocked_script(api, candidate):
+                logger.debug("skipping lyrics candidate: contains blocked script characters")
+                continue
+            return candidate
+        return None
+    except AttributeError:
+        logger.exception("api malformed response: %r", data)
+        return None
+
+
 def process_response(api, album, metadata, task_id, data, reply, error):
     """Process the lrclib.net API response and complete the album task."""
     logger = api.logger
@@ -101,23 +130,7 @@ def process_response(api, album, metadata, task_id, data, reply, error):
         logger.debug("starting to process")
         logger.debug("got response: %r", data)
 
-        instrumental = data.get("instrumental")
-        if instrumental:
-            logger.debug("instrumental track; skipping")
-            lyrics = None
-        else:
-            # Fallbacks to plain, ie, unsynced lyrics. Candidates containing
-            # blocked scripts (see plugin options) are skipped and the next
-            # candidate is tried instead.
-            lyrics = None
-            for candidate in (data.get("syncedLyrics"), data.get("plainLyrics")):
-                if not candidate:
-                    continue
-                if has_blocked_script(api, candidate):
-                    logger.debug("skipping lyrics candidate: contains blocked script characters")
-                    continue
-                lyrics = candidate
-                break
+        lyrics = pick_lyrics(api, data)
 
         # album.loaded-Guard: Lief der Task ins Timeout und ist das Album
         # bereits finalisiert (Scripts sind gelaufen), würden die Lyrics
@@ -163,17 +176,28 @@ def process_response(api, album, metadata, task_id, data, reply, error):
                 logger.exception("finalize workaround failed for %r", album)
 
 
-def process_track(api, track, metadata, track_node, release_node=None):
-    """Queue a lyrics lookup on lrclib.net for the given track."""
-    album = track.album
-
+def _build_query(metadata):
+    """Build the lrclib.net /api/get query from a track's metadata."""
     (mins, secs) = map(int, metadata["~length"].split(":"))
-    query = {
+    return {
         "artist_name": metadata["albumartist"] or metadata["artist"],
         "album_name": metadata["album"],
         "track_name": metadata["title"],
         "duration": mins * 60 + secs,  # accepts seconds only
     }
+
+
+def process_track(api, track, metadata, track_node, release_node=None):
+    """Queue a lyrics lookup on lrclib.net for the given track."""
+    # lyrics_mode: 'auto' = Lyrics schon beim Analysieren (Album-Laden)
+    # beziehen, 'manual' = nur über das Kontextmenü. Default ist 'manual',
+    # also KEINE lrclib-Anfrage während der Analyse.
+    if _get_option(api.plugin_config, 'lyrics_mode', 'manual') != 'auto':
+        return
+
+    album = track.album
+
+    query = _build_query(metadata)
     api.logger.debug("trying to query with: %r", query)
 
     task_id = f"lyrics_{track.id}"
@@ -203,6 +227,72 @@ def process_track(api, track, metadata, track_node, release_node=None):
     )
 
 
+def fetch_lyrics_for_track(api, track):
+    """Manually queue a lyrics lookup for a single track (context menu).
+
+    No album task needed here: the album is already loaded, so there is
+    nothing to block or finalize – just fire the request and write the
+    result into the track's metadata when it arrives.
+    """
+    try:
+        query = _build_query(track.metadata)
+    except Exception:
+        api.logger.exception("cannot build lrclib query for %r", track)
+        return
+    api.logger.debug("manual lyrics lookup, query: %r", query)
+    api.web_service.get_url(
+        url="https://lrclib.net/api/get",
+        handler=partial(fetch_response, api, track),
+        parse_response_type="json",
+        queryargs=query,
+    )
+
+
+def fetch_response(api, track, data, reply, error):
+    """Handle a manual lyrics lookup: write into track.metadata, update UI."""
+    logger = api.logger
+    try:
+        if error:
+            logger.error("lrclib request failed: %r", error)
+            return
+        lyrics = pick_lyrics(api, data)
+        if lyrics is None:
+            return
+        track.metadata["lyrics"] = lyrics
+        # Ansicht (Baum-Item/Metadaten-Box) aktualisieren; interne Fehler
+        # dabei dürfen Picard nicht mitreißen.
+        try:
+            track.update()
+        except Exception:
+            logger.exception("updating track view failed for %r", track)
+    except Exception:
+        logger.exception("manual lyrics fetch failed for %r", track)
+
+
+class FetchLyricsAction(BaseAction):
+    """Context menu entry: fetch lyrics from lrclib.net for the selection.
+
+    Registered for albums (fetches all tracks of each selected album) and
+    for individual tracks. Available in both lyrics_mode settings – in
+    'auto' mode it serves as an explicit re-fetch.
+    """
+
+    TITLE = "Fetch lyrics from lrclib.net"
+
+    def callback(self, objs):
+        api = self.api
+        tracks = []
+        for obj in objs:
+            if isinstance(obj, Album):
+                tracks.extend(obj.tracks)
+            elif isinstance(obj, Track):
+                tracks.append(obj)
+        for track in tracks:
+            fetch_lyrics_for_track(api, track)
+        api.logger.info(
+            "lyrics-fetcher: manual fetch started for %d track(s)", len(tracks))
+
+
 def clear_blocked_lyrics(api, file):
     """Pre-save hook: delete blocked lyrics left over in the file's tags."""
     if not _get_option(api.plugin_config, 'clear_blocked_lyrics', True):
@@ -224,6 +314,16 @@ class LyricsFetcherOptionsPage(OptionsPage):
     def __init__(self):
         super().__init__()
         layout = QtWidgets.QVBoxLayout(self)
+
+        mode_group = QtWidgets.QGroupBox("Fetching")
+        mode_layout = QtWidgets.QVBoxLayout(mode_group)
+        self.mode_label = QtWidgets.QLabel("Fetch lyrics:")
+        self.mode_combo = QtWidgets.QComboBox()
+        self.mode_combo.addItem("Automatically when albums are analyzed", 'auto')
+        self.mode_combo.addItem("Manually via the context menu (recommended)", 'manual')
+        mode_layout.addWidget(self.mode_label)
+        mode_layout.addWidget(self.mode_combo)
+        layout.addWidget(mode_group)
 
         filter_group = QtWidgets.QGroupBox("Lyrics filter")
         filter_layout = QtWidgets.QVBoxLayout(filter_group)
@@ -258,6 +358,10 @@ class LyricsFetcherOptionsPage(OptionsPage):
 
     def load(self):
         config = self.api.plugin_config
+        mode = _get_option(config, 'lyrics_mode', 'manual')
+        index = self.mode_combo.findData(mode)
+        # ungültiger/ungesetzter Wert → 'manual' (Index 1)
+        self.mode_combo.setCurrentIndex(index if index >= 0 else 1)
         action = _get_option(config, 'blocked_lyrics_action', 'skip')
         index = self.action_combo.findData(action)
         self.action_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -270,6 +374,7 @@ class LyricsFetcherOptionsPage(OptionsPage):
 
     def save(self):
         config = self.api.plugin_config
+        config['lyrics_mode'] = self.mode_combo.currentData()
         config['blocked_lyrics_action'] = self.action_combo.currentData()
         config['block_cjk'] = self.block_cjk.isChecked()
         config['block_hangul'] = self.block_hangul.isChecked()
@@ -288,6 +393,11 @@ def enable(api):
 
     api.register_track_metadata_processor(process_track)
     api.register_file_pre_save_processor(clear_blocked_lyrics)
+    # Kontextmenü-Eintrag „Fetch lyrics from lrclib.net" für Alben und
+    # Tracks (in beiden Modi verfügbar; im 'auto'-Modus als expliziter
+    # Re-Fetch).
+    api.register_album_action(FetchLyricsAction)
+    api.register_track_action(FetchLyricsAction)
     api.register_options_page(LyricsFetcherOptionsPage)
 
 

@@ -29,6 +29,14 @@ Corrected version:
   Wikidata to ~1 request/second, i.e. from ~28 works onward the chain
   would break). Like the classic V2 plugin, there is no artificial
   timeout; network timeouts still apply.
+
+Fetch modes:
+- Automatic mode (option "automatic_lookup"): genres are looked up
+  automatically while an album is loading, exactly as before.
+- Manual mode (default): no Wikidata requests are made during loading.
+  Instead, the context menu action "Fetch Wikidata genres" (available
+  on albums and tracks) triggers the lookups on demand. The action also
+  works in automatic mode, e.g. to re-fetch genres later.
 """
 
 from __future__ import annotations
@@ -44,10 +52,15 @@ from PyQt6.QtWidgets import (
 )
 
 from picard.album_requests import TaskType
-from picard.plugin3.api import OptionsPage
+from picard.plugin3.api import (
+    Album,
+    BaseAction,
+    OptionsPage,
+    Track,
+)
 
 
-PLUGIN_VERSION = "3.4.2"
+PLUGIN_VERSION = "3.5.0"
 WIKIDATA_BASE = "https://www.wikidata.org/wiki/Special:EntityData/"
 MB_BASE = "https://musicbrainz.org/ws/2/"
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -57,6 +70,7 @@ WIKIDATA_ENTITY = "http://www.wikidata.org/entity/"
 P136 = "{http://www.wikidata.org/prop/direct/}P136"
 
 DEFAULTS = {
+    "automatic_lookup": False,
     "use_release_group_genres": True,
     "use_artist_genres": True,
     "use_artist_only_if_no_release": True,
@@ -254,6 +268,8 @@ def _finish_task(api, album, task_id):
     (album._requests -= 1; album._finalize_loading(None)).
     _finalize_loading() itself is idempotent: it returns early if
     critical tasks are still open or the album has already been loaded.
+    For manual fetches on an already loaded album this early return also
+    means no finalization is re-triggered, which is exactly what we want.
     """
     full_id = f"{getattr(api, 'plugin_id', '')}_{task_id}"
     if (id(album), full_id) in _ABANDONED:
@@ -270,6 +286,9 @@ def _finish_task(api, album, task_id):
         # the task was completed.
         api.logger.info("Wikidata Genre V3: lookup task %s finished", task_id)
     if album is None or getattr(album, "loaded", True):
+        # Album already loaded (e.g. manual context menu fetch) —
+        # nothing to re-finalize; the track display was already
+        # refreshed by _refresh_track().
         return
     tagger = getattr(album, "tagger", None)
     if tagger is None or getattr(album, "id", None) not in getattr(tagger, "albums", {}):
@@ -423,7 +442,9 @@ def _add_album_task(api, album, task_id, description, create_request):
 
     This makes the album finalize only once the genres are available —
     the user's tagging scripts, which are supposed to clean up the
-    genres, only run in _finalize_loading_album().
+    genres, only run in _finalize_loading_album(). On an already loaded
+    album (manual context menu fetch) the task simply completes without
+    re-triggering finalization.
 
     api.add_album_task(blocking=True) enforces a 30-second timeout.
     But Picard rate-limits Wikidata requests to roughly one per second,
@@ -521,7 +542,10 @@ def _queue_lookup(api, album, track, metadata, item_id, entity_type):
         )
 
 
-def process_track(api, track, metadata, track_node, release_node=None):
+def _queue_lookups(api, track, metadata):
+    """Queue lookups for all configured sources (release group, artists,
+    works) of one track. Used by both the automatic processor and the
+    manual context menu action."""
     use_release = _setting(api, "use_release_group_genres")
     use_artist = _setting(api, "use_artist_genres")
     use_work = _setting(api, "use_work_genres")
@@ -539,6 +563,53 @@ def process_track(api, track, metadata, track_node, release_node=None):
             _queue_lookup(api, track.album, track, metadata, mbid, "work")
 
 
+def process_track(api, track, metadata, track_node, release_node=None):
+    """Automatic fetch during album loading.
+
+    Only active if the option "automatic_lookup" is enabled. In manual
+    mode (default) this processor does nothing; genres are fetched via
+    the context menu action "Fetch Wikidata genres" instead.
+    """
+    if not _setting(api, "automatic_lookup"):
+        return
+    _queue_lookups(api, track, metadata)
+
+
+class FetchWikidataGenresAction(BaseAction):
+    """Context menu action for albums and tracks: fetches Wikidata genres
+    on demand.
+
+    Available in both automatic and manual mode — in automatic mode it
+    can be used to fetch genres again later (results are merged). For an
+    album, all of its tracks are processed; for a track, only that one.
+    """
+
+    TITLE = "Fetch Wikidata genres"
+
+    def callback(self, objs):
+        api = self.api
+        albums = 0
+        tracks = 0
+        for obj in objs:
+            if isinstance(obj, Album):
+                for track in obj.tracks:
+                    _queue_lookups(api, track, track.metadata)
+                    tracks += 1
+                albums += 1
+            elif isinstance(obj, Track):
+                _queue_lookups(api, obj, obj.metadata)
+                tracks += 1
+        if not (albums or tracks):
+            # Selection contained neither albums nor tracks (e.g. files
+            # or clusters) — nothing to do.
+            api.logger.debug("Wikidata Genre V3: manual fetch — no albums or tracks selected")
+            return
+        api.logger.info(
+            "Wikidata Genre V3: manual genre lookup triggered for %d album(s), %d track(s)",
+            albums, tracks,
+        )
+
+
 class WikidataGenreOptionsPage(OptionsPage):
     NAME = "wikidatagenre_v3"
     TITLE = "Wikidata Genre V3"
@@ -551,6 +622,10 @@ class WikidataGenreOptionsPage(OptionsPage):
         # no arguments. A "self.api = api" would shadow the class
         # attribute with None and crash load()/save().
         super().__init__(parent)
+        self.automatic_lookup = QCheckBox(
+            "Automatically fetch genres while loading "
+            "(otherwise use the context menu entry)"
+        )
         self.use_release_group = QCheckBox("Use genres from the release group")
         self.use_artist = QCheckBox("Use genres from the artists")
         self.artist_only_if_no_release = QCheckBox(
@@ -561,6 +636,7 @@ class WikidataGenreOptionsPage(OptionsPage):
         self.ignore_genres = QLineEdit()
         self.delimiter = QLineEdit()
         layout = QFormLayout()
+        layout.addRow(self.automatic_lookup)
         layout.addRow(self.use_release_group)
         layout.addRow(self.use_artist)
         layout.addRow(self.artist_only_if_no_release)
@@ -572,6 +648,7 @@ class WikidataGenreOptionsPage(OptionsPage):
 
     def load(self):
         config = self.api.plugin_config
+        self.automatic_lookup.setChecked(bool(config["automatic_lookup"]))
         self.use_release_group.setChecked(bool(config["use_release_group_genres"]))
         self.use_artist.setChecked(bool(config["use_artist_genres"]))
         self.artist_only_if_no_release.setChecked(bool(config["use_artist_only_if_no_release"]))
@@ -582,6 +659,7 @@ class WikidataGenreOptionsPage(OptionsPage):
 
     def save(self):
         config = self.api.plugin_config
+        config["automatic_lookup"] = self.automatic_lookup.isChecked()
         config["use_release_group_genres"] = self.use_release_group.isChecked()
         config["use_artist_genres"] = self.use_artist.isChecked()
         config["use_artist_only_if_no_release"] = self.artist_only_if_no_release.isChecked()
@@ -598,14 +676,21 @@ def enable(api):
         api.plugin_config.register_option(key, default)
     api.register_track_metadata_processor(process_track)
     api.register_options_page(WikidataGenreOptionsPage)
-    # Log the active sources at startup — otherwise a disabled source
-    # is hard to identify as the cause of missing genres.
+    # Context menu actions for on-demand fetching. Registered in both
+    # modes: in manual mode this is the only way to fetch genres, in
+    # automatic mode it allows re-fetching later.
+    api.register_album_action(FetchWikidataGenresAction)
+    api.register_track_action(FetchWikidataGenresAction)
+    # Log the active sources and fetch mode at startup — otherwise a
+    # disabled source or manual mode is hard to identify as the cause
+    # of missing genres.
     api.logger.info(
-        "Wikidata Genre V3 %s enabled (sources: release-group=%s, artist=%s, work=%s)",
+        "Wikidata Genre V3 %s enabled (sources: release-group=%s, artist=%s, work=%s, automatic=%s)",
         PLUGIN_VERSION,
         _setting(api, "use_release_group_genres"),
         _setting(api, "use_artist_genres"),
         _setting(api, "use_work_genres"),
+        _setting(api, "automatic_lookup"),
     )
 
 

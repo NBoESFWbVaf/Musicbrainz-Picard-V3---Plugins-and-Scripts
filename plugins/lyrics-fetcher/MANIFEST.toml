@@ -8,7 +8,7 @@ description = "Lyrics fetcher using the public lrclib.net API. It's rewritten fr
 api = ["3.0"]
 
 # Optional fields
-version = "1.0.3"
+version = "1.1.0"
 authors = ["Deniz Engin <dev@dilbil.im>"]
 maintainers = ["Deniz Engin <dev@dilbil.im>"]
 license = "GPL-3.0-or-later"
@@ -28,6 +28,9 @@ are prioritized.
 
 **Options** (Options → Plugins → Lyrics Fetcher):
 
+- Choose whether lyrics are fetched automatically when albums are
+  analyzed or manually via the context menu entry "Fetch lyrics from
+  lrclib.net" (right-click on albums or tracks; manual is the default).
 - By default, lyrics written in Asian scripts are not loaded at all; loading
   them anyway can be selected instead. The blocked script groups
   (Chinese/Japanese, Korean, Southeast Asian, Indian) can be toggled

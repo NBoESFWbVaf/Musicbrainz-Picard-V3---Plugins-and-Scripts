@@ -20,7 +20,7 @@ Usage:
 3. Right-click and choose "Load Without Analysis"
 """
 api = ["3.0"]
-version = ["0.0.1"]
+version = "0.0.1"
 authors = ["Mirakuli Teebaum"]
 license = "GPL-2.0-or-later"
 license_url = "https://www.gnu.org/licenses/gpl-2.0.html"

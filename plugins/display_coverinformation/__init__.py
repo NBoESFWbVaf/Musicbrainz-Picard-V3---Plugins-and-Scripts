@@ -191,6 +191,24 @@ def _refresh_info(box):
                 pass
 
 
+def _active_layout(widget):
+    """Return the really active layout of a widget.
+
+    Robust against a Python instance attribute 'layout' shadowing the
+    QWidget.layout() method or holding a stale, not activated layout:
+    the active layout is always queried via the unbound Qt method,
+    which ignores any Python attribute shadowing.
+    """
+    layout = QtWidgets.QWidget.layout(widget)
+    if layout is not None:
+        return layout
+    # Fallback for edge cases: read the instance attribute
+    attr = getattr(widget, 'layout', None)
+    if attr is not None and not callable(attr):
+        return attr
+    return None
+
+
 def _insert_after(box_layout, anchor, widget):
     """Insert a widget directly below an anchor widget into the layout.
 
@@ -227,12 +245,33 @@ def enable(api: PluginApi):
     }
 
     # Insert directly below the respective preview images into the cover
-    # art panel (not a separate window). The built-in info labels serve as
-    # anchors if present; otherwise the preview images themselves.
+    # art panel (not a separate window). Always use the really active layout
+    # of the panel: a widget inserted into an inactive layout would be
+    # drawn as a free-floating overlay, looking like a separate window.
+    layout = _active_layout(box)
+    if layout is None:
+        api.logger.error('%s: cover art panel has no layout, plugin will not be enabled.',
+                         PLUGIN_NAME)
+        return
+
+    # The built-in info labels serve as anchors if present; otherwise the
+    # preview images themselves.
     new_anchor = getattr(box, 'cover_art_info_label', None) or box.cover_art
     orig_anchor = getattr(box, 'orig_cover_art_info_label', None) or box.orig_cover_art
-    _insert_after(box.layout, new_anchor, widgets['new'])
-    _insert_after(box.layout, orig_anchor, widgets['orig'])
+    _insert_after(layout, new_anchor, widgets['new'])
+    _insert_after(layout, orig_anchor, widgets['orig'])
+
+    # Sanity check: the info widgets must be embedded children of the cover
+    # art panel, managed by its active layout, and never top-level windows.
+    # Log a warning if this is not the case, so the cause can be diagnosed
+    # from the Picard log.
+    for name, widget in widgets.items():
+        in_layout = layout.indexOf(widget) >= 0
+        if widget.isWindow() or widget.parent() is not box or not in_layout:
+            api.logger.warning(
+                '%s: the %s info widget is not embedded in the cover art panel '
+                '(parent=%r, isWindow=%s, inActiveLayout=%s).',
+                PLUGIN_NAME, name, widget.parent(), widget.isWindow(), in_layout)
 
     # update_display() is the central refresh point of the cover art panel
     # (selection changes, new cover art, saved images). Hook in there:
@@ -267,8 +306,10 @@ def disable():
     box = _state.get('box')
     widgets = _state.get('widgets') or {}
     if box is not None:
+        layout = _active_layout(box)
         for widget in widgets.values():
-            box.layout.removeWidget(widget)
+            if layout is not None:
+                layout.removeWidget(widget)
             widget.deleteLater()
 
     _state.clear()

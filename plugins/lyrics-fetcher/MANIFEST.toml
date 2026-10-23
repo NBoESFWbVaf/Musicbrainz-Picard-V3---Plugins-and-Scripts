@@ -4,11 +4,11 @@
 # Required fields
 uuid = "c53b6ceb-ffb0-420e-9be0-de52f403a1a0"  # einmalig generiert, nie ändern
 name = "Lyrics Fetcher"
-description = "Lyrics fetcher using the public lrclib.net API. Prefers synced lyrics and falls back to plain lyrics. No registration or API keys required."
+description = "Lyrics fetcher using the public lrclib.net API. It's rewritten from Project 'Picard Sölzer'. Prefers synced lyrics and falls back to plain lyrics. No registration or API keys required."
 api = ["3.0"]
 
 # Optional fields
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Deniz Engin <dev@dilbil.im>"]
 maintainers = ["Deniz Engin <dev@dilbil.im>"]
 license = "GPL-3.0-or-later"

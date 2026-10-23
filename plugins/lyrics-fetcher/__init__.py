@@ -132,7 +132,13 @@ def process_response(api, album, metadata, task_id, data, reply, error):
         # aufrufen; die internen Guards (self.loaded, has_critical_tasks)
         # machen wiederholte oder verfrühte Aufrufe harmlos.
         if album.id in api.tagger.albums:
-            album._finalize_loading(None)
+            # try/except: _finalize_loading berührt Picard-Interna, die in
+            # 3.0.x teils fehlerhaft sind (z. B. check_timed_out_tasks) –
+            # ein Fehler dort darf Picard niemals mitreißen.
+            try:
+                album._finalize_loading(None)
+            except Exception:
+                logger.exception("finalize workaround failed for %r", album)
 
 
 def process_track(api, track, metadata, track_node, release_node=None):
@@ -162,15 +168,16 @@ def process_track(api, track, metadata, track_node, release_node=None):
 
     # blocking=True hält die Album-Finalisierung (und damit die Ausführung
     # der Tagging-Scripts) an, bis die Lyrics geladen sind – die Scripts
-    # sehen die Lyrics also garantiert. timeout begrenzt die Wartezeit,
-    # falls lrclib überlastet ist (503-Retry-Stürme).
+    # sehen die Lyrics also garantiert. Bewusst KEIN timeout: Picards
+    # check_timed_out_tasks() crasht in 3.0.x beim Abbrechen abgelaufener
+    # Tasks mit AttributeError ('PendingRequest' object has no attribute
+    # 'abort').
     api.add_album_task(
         album,
         task_id,
         "Fetching lyrics",
         request_factory=create_request,
         blocking=True,
-        timeout=30.0,
     )
 
 

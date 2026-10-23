@@ -1,4 +1,4 @@
-# Picard Sözler is a plugin that fetches lyrics from a public API.
+# Lyrics Fetcher is a plugin that fetches lyrics from a public API.
 # Copyright (C) 2024 Deniz Engin <dev@dilbil.im>
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -10,8 +10,8 @@
 """Fetches lyrics for each track from the public lrclib.net API.
 
 Port of the former Picard v2 plugin "Picard Sözler" to the Picard
-plugin API v3. All plugin metadata lives in MANIFEST.toml; the v2
-PLUGIN_* constants are no longer used.
+plugin API v3 (renamed to "lyrics-fetcher"). All plugin metadata lives
+in MANIFEST.toml; the v2 PLUGIN_* constants are no longer used.
 """
 
 from functools import lru_cache, partial
@@ -152,11 +152,17 @@ def process_track(api, track, metadata, track_node, release_node=None):
             queryargs=query,
         )
 
+    # blocking=True hält die Album-Finalisierung (und damit die Ausführung
+    # der Tagging-Scripts) an, bis die Lyrics geladen sind – die Scripts
+    # sehen die Lyrics also garantiert. timeout begrenzt die Wartezeit,
+    # falls lrclib überlastet ist (503-Retry-Stürme).
     api.add_album_task(
         album,
         task_id,
         "Fetching lyrics",
         request_factory=create_request,
+        blocking=True,
+        timeout=30.0,
     )
 
 
@@ -171,11 +177,11 @@ def clear_blocked_lyrics(api, file):
         api.logger.debug("removing existing blocked lyrics from %r", file.filename)
 
 
-class SozlerOptionsPage(OptionsPage):
-    """Options page: Options → Plugins → Picard Sözler."""
+class LyricsFetcherOptionsPage(OptionsPage):
+    """Options page: Options → Plugins → Lyrics Fetcher."""
 
-    NAME = "picard_sözler_v3"
-    TITLE = "Picard Sözler"
+    NAME = "lyrics-fetcher"
+    TITLE = "Lyrics Fetcher"
     PARENT = "plugins"
 
     def __init__(self):
@@ -238,14 +244,14 @@ class SozlerOptionsPage(OptionsPage):
 def enable(api):
     """Called when the plugin is enabled: register options and hooks."""
     # Loggt die tatsächlich laufende Version (Gut-zu-wissen bei Update-Problemen)
-    api.logger.info("picard_sözler_v3 %s enabled", api.get_plugin_version())
+    api.logger.info("lyrics-fetcher %s enabled", api.get_plugin_version())
 
     for option, default in PLUGIN_OPTIONS.items():
         api.plugin_config.register_option(option, default)
 
     api.register_track_metadata_processor(process_track)
     api.register_file_pre_save_processor(clear_blocked_lyrics)
-    api.register_options_page(SozlerOptionsPage)
+    api.register_options_page(LyricsFetcherOptionsPage)
 
 
 def disable():

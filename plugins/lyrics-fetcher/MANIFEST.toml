@@ -1,14 +1,14 @@
-# picard_sözler_v3 — Lyrics fetcher for MusicBrainz Picard 3
+# lyrics-fetcher — Lyrics fetcher for MusicBrainz Picard 3
 # Manifest spec: https://github.com/metabrainz/picard/blob/master/docs/PLUGINSV3/MANIFEST.md
 
 # Required fields
-uuid = "0195455c-f3ff-46f1-92f0-597d456eb240"  # einmalig generiert, nie ändern
-name = "picard_sözler_v3"
+uuid = "c53b6ceb-ffb0-420e-9be0-de52f403a1a0"  # einmalig generiert, nie ändern
+name = "Lyrics Fetcher"
 description = "Lyrics fetcher using the public lrclib.net API. Prefers synced lyrics and falls back to plain lyrics. No registration or API keys required."
 api = ["3.0"]
 
 # Optional fields
-version = "0.2.0"
+version = "1.0.0"
 authors = ["Deniz Engin <dev@dilbil.im>"]
 maintainers = ["Deniz Engin <dev@dilbil.im>"]
 license = "GPL-3.0-or-later"
@@ -20,13 +20,13 @@ source_locale = "en"
 # report_bugs_to = "https://github.com/<user>/picard-sozler-v3/issues"
 
 long_description = """
-Sözler is a lyrics fetcher for Picard. It uses the public API provided by the
+Lyrics Fetcher is a plugin for Picard. It uses the public API provided by the
 lrclib.net project, which requires no registration or API keys!
 
 The API provides synced lyrics and unsynced ones as a fallback. Synced lyrics
 are prioritized.
 
-**Options** (Options → Plugins → Picard Sözler):
+**Options** (Options → Plugins → Lyrics Fetcher):
 
 - By default, lyrics written in Asian scripts are not loaded at all; loading
   them anyway can be selected instead. The blocked script groups

@@ -2,14 +2,11 @@
 
 Fügt der Picard-Symbolleiste eine eigene Schaltfläche hinzu,
 über die sich das Fenster "Scripts & Plugins" öffnen lässt.
-Zusätzlich wird derselbe Befehl im Werkzeuge-Menü registriert.
 """
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QDialog, QLabel, QToolBar, QVBoxLayout
-
-from picard.plugin3.api import BaseAction
 
 # Fenster und Widgets global halten, damit Qt sie nicht wegräumt
 # und disable() sie sauber entfernen kann.
@@ -38,21 +35,6 @@ class ScriptsPluginsWindow(QDialog):
         )
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)
-
-
-class OpenScriptsPluginsWindow(BaseAction):
-    """Offizieller Fallback: Eintrag im Werkzeuge-Menü."""
-
-    TITLE = "Scripts & Plugins"
-
-    def __init__(self, api=None):
-        super().__init__()
-        self.api = api
-
-    def callback(self, objs):
-        window = getattr(self.api.tagger, "window", None) if self.api else None
-        if window is not None:
-            show_scripts_plugins_window(window)
 
 
 def show_scripts_plugins_window(parent):
@@ -88,9 +70,6 @@ def enable(api):
     )
     _toolbar.addAction(_action)
     window.addToolBar(_toolbar)
-
-    # --- Offizieller, stabiler Fallback über die Plugin-API ---
-    api.register_tools_menu_action(OpenScriptsPluginsWindow)
 
 
 def disable(api):

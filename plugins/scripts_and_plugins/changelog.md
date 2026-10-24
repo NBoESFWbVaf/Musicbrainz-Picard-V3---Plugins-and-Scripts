@@ -8,6 +8,26 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.6.1] – 2026-10-24
+### Fixed
+- Absturz beim ersten Öffnen des Fensters behoben: Die V3-API-Doku
+  zeigt `api.plugin_config.get(...)` — doch `ProfileConfigSection`
+  besitzt in Picard 3.0.2 keine `get()`-Methode, nur `__getitem__`
+  (liefert `None` für unregistrierte Optionen). Das Auslesen der
+  Optionen läuft jetzt über den neuen Helfer `_config_value()` in
+  `helpers.py`, der das abfängt; verwendet in `window.py` und in der
+  Einstellungsseite (`options_page.py`), die denselben Fehler hätte.
+
+## [0.6.0] – 2026-10-24
+### Added
+- Einstellungsseite in den Picard-Optionen unter „Plugins“
+  (neue Datei `options_page.py`): Anzeige deaktivierter Scripte an/aus,
+  zusätzliche Schriftgröße (0–5 Punkte) und zusätzlicher Zeilenabstand
+  (0–30 Pixel). Alle drei Optionen werden über `api.plugin_config`
+  registriert und nehmen an Picards Profilsystem teil (pro Profil
+  überschreibbar). Geänderte Werte greifen beim nächsten Öffnen des
+  Fensters bzw. beim nächsten Listen-Neuaufbau — ohne Picard-Neustart.
+
 ## [0.5.1] – 2026-10-24
 ### Changed
 - Code-Struktur: Der Fenster-Code ist in `window.py` ausgelagert, allgemeine

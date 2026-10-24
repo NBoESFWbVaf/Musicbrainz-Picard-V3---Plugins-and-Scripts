@@ -436,6 +436,14 @@ class ScriptsPluginsWindow(QDialog):
         if signature == self._last_selection_signature:
             return
         self._last_selection_signature = signature
+        # Nummerierungs-Schaltflächen bei jeder Auswahländerung
+        # mitführen (nicht erst beim „Aktualisieren“): Der Zustand
+        # muss hier gesetzt werden, weil dieser Pfad die Live-
+        # Verfolgung übernimmt und refresh() nur beim Öffnen bzw.
+        # Klick läuft.
+        album_selected = any(isinstance(obj, Album) for obj in objs)
+        self.renumber_button.setEnabled(album_selected)
+        self.mix_button.setEnabled(album_selected)
         needed = set()
         for obj in objs:
             needed.update(_points_for_object(obj))

@@ -2,6 +2,6 @@ uuid = "4c9f9480-ce95-4e5c-814c-88c2d5212b77"
 name = "Scripts & Plugins"
 description = "Fenster mit Tagging-Scripten, Plugin-Aktionen, Genre-Auswahl und Track-Nummerierung pro Disc (sequenziell oder gemischt, nur Tracks mit Datei); zusätzlich Cover-Informationen im Cover-Panel."
 authors = ["Mirakuli Teebaum"]
-version = "0.14.1"
+version = "0.14.2"
 api = ["3.0"]
 license = "GPL-3.0-or-later"

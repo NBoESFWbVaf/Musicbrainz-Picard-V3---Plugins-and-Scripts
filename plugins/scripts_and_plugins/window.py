@@ -29,6 +29,7 @@ from picard.track import Track
 from .helpers import (
     _ACTION_POINTS,
     _action_title,
+    _config_value,
     _points_for_object,
 )
 
@@ -221,12 +222,12 @@ class ScriptsPluginsWindow(QDialog):
         den Picard-Optionen beim nächsten Öffnen greifen, ohne dass
         Picard neu gestartet werden muss.
         """
-        offset = self.api.plugin_config.get("font_size_offset", 1)
+        offset = _config_value(self.api.plugin_config, "font_size_offset", 1)
         font = QFont(self._base_font)
         if offset > 0 and font.pointSize() > 0:
             font.setPointSize(font.pointSize() + offset)
         self.setFont(font)
-        spacing = self.api.plugin_config.get("list_row_spacing", 6)
+        spacing = _config_value(self.api.plugin_config, "list_row_spacing", 6)
         self.script_list.setItemDelegate(
             ListItemSpacingDelegate(self.script_list, spacing)
         )
@@ -299,7 +300,9 @@ class ScriptsPluginsWindow(QDialog):
         except Exception:
             self.api.logger.exception("Tagging-Scripte konnten nicht geladen werden.")
             return 0
-        show_disabled = self.api.plugin_config.get("show_disabled_scripts", True)
+        show_disabled = _config_value(
+            self.api.plugin_config, "show_disabled_scripts", True
+        )
         for script in scripts:
             if not script.enabled and not show_disabled:
                 continue

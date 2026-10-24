@@ -8,6 +8,19 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.6.2] – 2026-10-24
+### Fixed
+- Schriftgröße änderte sich nicht: Auf Systemen, die die Schrift in Pixeln
+  statt Punkten definieren (z. B. Wayland mit Skalierung), liefert
+  `pointSize()` -1 und der Punkte-Offset wurde übersprungen. Die
+  Offset-Berechnung nutzt jetzt `QFontInfo` und rechnet Pixel-Schriften
+  über die Bildschirm-DPI um (72 Punkte = 1 Zoll).
+- Einstellungen greifen jetzt sofort und ohne Neustart:
+  `_apply_display_settings()` läuft bei jeder Aktualisierung (Öffnen,
+  Toolbar-Klick, „Aktualisieren“), und das Fenster verbindet sich
+  zusätzlich mit dem `setting_changed`-Signal der Plugin-Konfiguration —
+  Änderungen im Optionsdialog aktualisieren ein offenes Fenster live.
+
 ## [0.6.1] – 2026-10-24
 ### Fixed
 - Absturz beim ersten Öffnen des Fensters behoben: Die V3-API-Doku

@@ -1,7 +1,6 @@
 """Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
 
 from PyQt6.QtCore import QDateTime, Qt, QTimer
-from PyQt6.QtGui import QFont, QFontInfo
 from PyQt6.QtWidgets import (
     QDialog,
     QGroupBox,
@@ -72,17 +71,23 @@ class ScriptsPluginsWindow(QDialog):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        # Ausgangsschrift merken; Größe und Zeilenabstand werden über
-        # _apply_display_settings() aus den Plugin-Optionen gesetzt.
-        self._base_font = self.font()
+        # --- Schaltflächen (früh erstellt, da sie innerhalb der
+        #     Bereichs-Boxen platziert werden) ---
+        self.refresh_button = QPushButton("Aktualisieren", self)
+        self.clear_log_button = QPushButton("Leeren", self)
+        self.clear_log_button.setToolTip("Protokoll leeren")
+        self.run_script_button = QPushButton("Script ausführen", self)
+        self.run_action_button = QPushButton("Aktion ausführen", self)
+        self.run_script_button.setEnabled(False)
+        self.run_action_button.setEnabled(False)
 
         # --- Script-Liste ---
         self.script_list = QListWidget(self)
         self.script_list.setItemDelegate(
             ListItemSpacingDelegate(self.script_list)
         )
-        scripts_box = QGroupBox("Tagging-Scripte", self)
-        scripts_layout = QVBoxLayout(scripts_box)
+        self.scripts_box = QGroupBox("Tagging-Scripte", self)
+        scripts_layout = QVBoxLayout(self.scripts_box)
         # Rechtsbündige Kopfzeile über der Script-Liste
         scripts_header = QHBoxLayout()
         scripts_header.addStretch(1)
@@ -94,37 +99,37 @@ class ScriptsPluginsWindow(QDialog):
         scripts_header.addWidget(self.run_all_button)
         scripts_layout.addLayout(scripts_header)
         scripts_layout.addWidget(self.script_list)
+        # „Script ausführen“ direkt unter der Script-Liste
+        scripts_footer = QHBoxLayout()
+        scripts_footer.addStretch(1)
+        scripts_footer.addWidget(self.run_script_button)
+        scripts_layout.addLayout(scripts_footer)
 
         # --- Action-Liste ---
         self.action_list = QListWidget(self)
         self.action_list.setItemDelegate(
             ListItemSpacingDelegate(self.action_list)
         )
-        actions_box = QGroupBox("Plugin-Aktionen", self)
-        actions_layout = QVBoxLayout(actions_box)
+        self.actions_box = QGroupBox("Plugin-Aktionen", self)
+        actions_layout = QVBoxLayout(self.actions_box)
         actions_layout.addWidget(self.action_list)
+        # „Aktion ausführen“ direkt unter der Action-Liste
+        actions_footer = QHBoxLayout()
+        actions_footer.addStretch(1)
+        actions_footer.addWidget(self.run_action_button)
+        actions_layout.addLayout(actions_footer)
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        splitter.addWidget(scripts_box)
-        splitter.addWidget(actions_box)
+        splitter.addWidget(self.scripts_box)
+        splitter.addWidget(self.actions_box)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
 
-        # --- Schaltflächen ---
-        self.refresh_button = QPushButton("Aktualisieren", self)
-        self.clear_log_button = QPushButton("Leeren", self)
-        self.clear_log_button.setToolTip("Protokoll leeren")
-        self.run_script_button = QPushButton("Script ausführen", self)
-        self.run_action_button = QPushButton("Aktion ausführen", self)
-        self.run_script_button.setEnabled(False)
-        self.run_action_button.setEnabled(False)
-
+        # Untere Schaltflächenzeile: nur noch Fenster-übergreifendes
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.refresh_button)
         button_layout.addWidget(self.clear_log_button)
         button_layout.addStretch(1)
-        button_layout.addWidget(self.run_script_button)
-        button_layout.addWidget(self.run_action_button)
 
         self._status = QLabel("Öffne das Fenster oder klicke auf „Aktualisieren“.", self)
         self._status.setWordWrap(True)
@@ -136,8 +141,8 @@ class ScriptsPluginsWindow(QDialog):
         self.log_view.setPlaceholderText(
             "Start, Erfolg und Fehlschlag ausgeführter Scripte und Aktionen …"
         )
-        log_box = QGroupBox("Protokoll", self)
-        log_layout = QVBoxLayout(log_box)
+        self.log_box = QGroupBox("Protokoll", self)
+        log_layout = QVBoxLayout(self.log_box)
         log_layout.addWidget(self.log_view)
 
         # Vertikaler Splitter zwischen Listen und Protokoll: Die Höhe
@@ -145,7 +150,7 @@ class ScriptsPluginsWindow(QDialog):
         # ohne dass eines der beiden Bereiche ganz verschwindet.
         main_splitter = QSplitter(Qt.Orientation.Vertical, self)
         main_splitter.addWidget(splitter)
-        main_splitter.addWidget(log_box)
+        main_splitter.addWidget(self.log_box)
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 0)
         main_splitter.setCollapsible(0, False)
@@ -228,28 +233,14 @@ class ScriptsPluginsWindow(QDialog):
         )
 
     def _apply_display_settings(self):
-        """Schriftgröße und Zeilenabstand aus den Plugin-Optionen anwenden.
+        """Anzeige-Einstellungen aus den Plugin-Optionen anwenden.
 
-        Läuft bei jeder Aktualisierung (Öffnen, Toolbar-Klick,
-        „Aktualisieren“) sowie live beim Ändern der Optionen über das
-        setting_changed-Signal der Plugin-Konfiguration.
+        Steuert die Sichtbarkeit der Bereichs-Boxen (Scripte, Aktionen,
+        Protokoll) und den Zeilenabstand. Läuft bei jeder Aktualisierung
+        (Öffnen, Toolbar-Klick, „Aktualisieren“) sowie live beim Ändern
+        der Optionen über das setting_changed-Signal der
+        Plugin-Konfiguration.
         """
-        offset = _config_value(self.api.plugin_config, "font_size_offset", 1)
-        font = QFont(self._base_font)
-        if offset > 0:
-            # Manche Systeme (z. B. Wayland mit Skalierung) definieren die
-            # Schrift in Pixeln statt Punkten — dann liefert pointSize() -1
-            # und der Punkte-Offset muss über die Bildschirm-DPI in Pixel
-            # umgerechnet werden (72 Punkte = 1 Zoll).
-            info = QFontInfo(self._base_font)
-            if info.pointSize() > 0:
-                font.setPointSize(info.pointSize() + offset)
-            elif info.pixelSize() > 0:
-                dpi = self.logicalDpiY() or 96
-                font.setPixelSize(
-                    int(round(info.pixelSize() + offset * dpi / 72.0))
-                )
-        self.setFont(font)
         spacing = _config_value(self.api.plugin_config, "list_row_spacing", 6)
         self.script_list.setItemDelegate(
             ListItemSpacingDelegate(self.script_list, spacing)
@@ -257,11 +248,22 @@ class ScriptsPluginsWindow(QDialog):
         self.action_list.setItemDelegate(
             ListItemSpacingDelegate(self.action_list, spacing)
         )
+        self.scripts_box.setVisible(
+            _config_value(self.api.plugin_config, "show_scripts_list", True)
+        )
+        self.actions_box.setVisible(
+            _config_value(self.api.plugin_config, "show_actions_list", True)
+        )
+        self.log_box.setVisible(
+            _config_value(self.api.plugin_config, "show_log", True)
+        )
 
     def _on_plugin_setting_changed(self, name, old_value, new_value):
         """Live-Reaktion auf Optionsänderungen (z. B. im Optionsdialog)."""
         if name in (
-            "font_size_offset",
+            "show_scripts_list",
+            "show_actions_list",
+            "show_log",
             "list_row_spacing",
             "show_disabled_scripts",
         ):

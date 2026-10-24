@@ -8,6 +8,15 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.11.1] – 2026-10-24
+### Fixed
+- Das Plugin erschien nach 0.11.0 gar nicht mehr in der Pluginliste und
+  wurde ohne Fehlermeldung im Log still übergangen: Die mit dem
+  Cover-Merge verlängerte `description` in der MANIFEST.toml war auf
+  306 Zeichen angewachsen, Picard 3.0.2 validiert das Feld aber über
+  `validate_manifest_dict` auf maximal 200 Zeichen. Die Beschreibung
+  ist jetzt auf 162 Zeichen gekürzt; das Plugin wird wieder geladen.
+
 ## [0.11.0] – 2026-10-24
 ### Added
 - Cover-Informationen im Cover-Panel des Hauptfensters (neues Modul

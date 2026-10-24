@@ -23,6 +23,10 @@ from .window import ScriptsPluginsWindow
 _window = None
 _toolbar = None
 _action = None
+# PluginApi-Objekt aus enable() — Picard 3.0.2 ruft disable() ohne
+# Argumente auf (verifiziert gegen picard/plugin3/plugin.py), deshalb
+# halten wir uns das API-Objekt selbst.
+_api = None
 # Live-Handler für die Cover-Option (für das saubere Trennen der
 # Signal-Verbindung in disable()).
 _cover_info_setting_handler = None
@@ -41,8 +45,11 @@ def show_scripts_plugins_window(api, parent):
 
 def enable(api):
     """Wird beim Aktivieren des Plugins aufgerufen (UI ist zu diesem
-    Zeitpunkt bereits verfügbar)."""
-    global _toolbar, _action, _cover_info_setting_handler
+    Zeitpunkt bereits verfügbar). Das PluginApi-Objekt wird in _api
+    gehalten, weil Picard 3.0.2 disable() ohne Argumente aufruft."""
+    global _toolbar, _action, _cover_info_setting_handler, _api
+
+    _api = api
 
     # --- Optionen registrieren (Plugin-Konfiguration, profilfähig) ---
     api.plugin_config.register_option(
@@ -148,12 +155,20 @@ def enable(api):
         enable_cover_info(api)
 
 
-def disable(api):
-    """Aufräumen: Symbolleiste entfernen, Fenster schließen."""
+def disable():
+    """Aufräumen: Symbolleiste entfernen, Fenster schließen.
+
+    Picard 3.0.2 ruft disable() ohne Argumente auf (verifiziert gegen
+    picard/plugin3/plugin.py: Plugin.disable() ruft
+    self._module.disable() ohne Parameter). Das PluginApi-Objekt
+    kommt deshalb aus der Modul-Variable _api (gesetzt in enable()).
+    """
     global _toolbar, _action, _window, _cover_info_setting_handler
 
+    api = _api
+
     # Live-Handler für die Cover-Option lösen, falls er verbunden wurde.
-    if _cover_info_setting_handler is not None:
+    if _cover_info_setting_handler is not None and api is not None:
         try:
             api.plugin_config.setting_changed.disconnect(
                 _cover_info_setting_handler
@@ -166,7 +181,7 @@ def disable(api):
     # Cover-Info-Widgets und CoverArtBox-Patch aus coverinfo.py entfernen
     disable_cover_info()
 
-    window = api.tagger.window
+    window = api.tagger.window if api is not None else None
 
     if _toolbar is not None:
         if window is not None:

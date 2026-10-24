@@ -8,6 +8,16 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.12.0] – 2026-10-24
+### Added
+- Neue Option „Cover-Informationen anzeigen“ (Voreinstellung: an) auf
+  der Einstellungsseite, profilfähig: steuert die Cover-Informationen
+  im Cover-Panel. Die Anzeige lässt sich damit ohne Neustart ein- und
+  ausschalten — das setting_changed-Signal der Plugin-Konfiguration
+  schaltet die Info-Widgets live; beim Start wird der Optionswert
+  ausgelesen. Beim Deaktivieren des Plugins wird die Signal-Verbindung
+  sauber getrennt.
+
 ## [0.11.1] – 2026-10-24
 ### Fixed
 - Das Plugin erschien nach 0.11.0 gar nicht mehr in der Pluginliste und

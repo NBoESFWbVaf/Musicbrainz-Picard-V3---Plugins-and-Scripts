@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
 
 from picard.plugin3.api import OptionsPage, PageOptionConfigs, t_
 
+from .helpers import _config_value
+
 
 class ScriptsPluginsOptionsPage(OptionsPage):
     """Optionen → Plugins → Scripts & Plugins."""
@@ -56,13 +58,13 @@ class ScriptsPluginsOptionsPage(OptionsPage):
     def load(self):
         """Einstellungen aus der Plugin-Konfiguration in die Widgets laden."""
         self.show_disabled_scripts_check.setChecked(
-            self.api.plugin_config.get("show_disabled_scripts", True)
+            _config_value(self.api.plugin_config, "show_disabled_scripts", True)
         )
         self.font_size_offset_spin.setValue(
-            self.api.plugin_config.get("font_size_offset", 1)
+            _config_value(self.api.plugin_config, "font_size_offset", 1)
         )
         self.list_row_spacing_spin.setValue(
-            self.api.plugin_config.get("list_row_spacing", 6)
+            _config_value(self.api.plugin_config, "list_row_spacing", 6)
         )
 
     def save(self):

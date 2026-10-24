@@ -34,6 +34,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         "show_actions_list": {"widgets": ["show_actions_list_check"]},
         "show_log": {"widgets": ["show_log_check"]},
         "show_genre": {"widgets": ["show_genre_check"]},
+        "show_numbering": {"widgets": ["show_numbering_check"]},
         "show_cover_info": {"widgets": ["show_cover_info_check"]},
         "genre_list": {"widgets": ["genre_list_edit"]},
         "list_row_spacing": {"widgets": ["list_row_spacing_spin"]},
@@ -55,7 +56,10 @@ class ScriptsPluginsOptionsPage(OptionsPage):
             "Protokoll anzeigen", self
         )
         self.show_genre_check = QCheckBox(
-            "Genre-Auswahl und Nummerierung anzeigen", self
+            "Genre-Auswahl anzeigen", self
+        )
+        self.show_numbering_check = QCheckBox(
+            "Nummerierung anzeigen", self
         )
         self.show_cover_info_check = QCheckBox(
             "Cover-Informationen anzeigen", self
@@ -79,6 +83,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         form.addRow(self.show_actions_list_check)
         form.addRow(self.show_log_check)
         form.addRow(self.show_genre_check)
+        form.addRow(self.show_numbering_check)
         form.addRow(self.show_cover_info_check)
         form.addRow("Genre-Liste (eine Genre pro Zeile):", self.genre_list_edit)
         form.addRow("Zusätzlicher Zeilenabstand:", self.list_row_spacing_spin)
@@ -103,6 +108,9 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.show_genre_check.setChecked(
             _config_value(self.api.plugin_config, "show_genre", True)
+        )
+        self.show_numbering_check.setChecked(
+            _config_value(self.api.plugin_config, "show_numbering", True)
         )
         self.show_cover_info_check.setChecked(
             _config_value(self.api.plugin_config, "show_cover_info", True)
@@ -131,6 +139,9 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.api.plugin_config["show_genre"] = (
             self.show_genre_check.isChecked()
+        )
+        self.api.plugin_config["show_numbering"] = (
+            self.show_numbering_check.isChecked()
         )
         self.api.plugin_config["show_cover_info"] = (
             self.show_cover_info_check.isChecked()

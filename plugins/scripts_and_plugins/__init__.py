@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QToolBar
 
+from .helpers import _DEFAULT_GENRE_LIST
 from .options_page import ScriptsPluginsOptionsPage
 from .window import ScriptsPluginsWindow
 
@@ -60,6 +61,18 @@ def enable(api):
         "show_log",
         True,
         title="Protokoll anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
+        "show_genre",
+        True,
+        title="Genre-Auswahl anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
+        "genre_list",
+        _DEFAULT_GENRE_LIST,
+        title="Genre-Liste (eine pro Zeile)",
         in_profile=True,
     )
     api.plugin_config.register_option(

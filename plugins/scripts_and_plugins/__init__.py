@@ -45,11 +45,22 @@ def enable(api):
         in_profile=True,
     )
     api.plugin_config.register_option(
-        "font_size_offset",
-        1,
-        title="Zusätzliche Schriftgröße (Punkte)",
+        "show_scripts_list",
+        True,
+        title="Tagging-Scripte anzeigen",
         in_profile=True,
-        bounds=(0, 5),
+    )
+    api.plugin_config.register_option(
+        "show_actions_list",
+        True,
+        title="Plugin-Aktionen anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
+        "show_log",
+        True,
+        title="Protokoll anzeigen",
+        in_profile=True,
     )
     api.plugin_config.register_option(
         "list_row_spacing",

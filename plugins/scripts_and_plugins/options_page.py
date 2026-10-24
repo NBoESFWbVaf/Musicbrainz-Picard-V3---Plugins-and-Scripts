@@ -34,6 +34,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         "show_actions_list": {"widgets": ["show_actions_list_check"]},
         "show_log": {"widgets": ["show_log_check"]},
         "show_genre": {"widgets": ["show_genre_check"]},
+        "show_cover_info": {"widgets": ["show_cover_info_check"]},
         "genre_list": {"widgets": ["genre_list_edit"]},
         "list_row_spacing": {"widgets": ["list_row_spacing_spin"]},
     }
@@ -56,6 +57,13 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.show_genre_check = QCheckBox(
             "Genre-Auswahl anzeigen", self
         )
+        self.show_cover_info_check = QCheckBox(
+            "Cover-Informationen anzeigen", self
+        )
+        self.show_cover_info_check.setToolTip(
+            "Maße, Dateigröße und Dateityp der Cover-Bilder im "
+            "Cover-Panel des Hauptfensters anzeigen"
+        )
         self.genre_list_edit = QPlainTextEdit(self)
         self.genre_list_edit.setPlaceholderText(
             "Eine Genre pro Zeile …"
@@ -71,6 +79,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         form.addRow(self.show_actions_list_check)
         form.addRow(self.show_log_check)
         form.addRow(self.show_genre_check)
+        form.addRow(self.show_cover_info_check)
         form.addRow("Genre-Liste (eine Genre pro Zeile):", self.genre_list_edit)
         form.addRow("Zusätzlicher Zeilenabstand:", self.list_row_spacing_spin)
 
@@ -94,6 +103,9 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.show_genre_check.setChecked(
             _config_value(self.api.plugin_config, "show_genre", True)
+        )
+        self.show_cover_info_check.setChecked(
+            _config_value(self.api.plugin_config, "show_cover_info", True)
         )
         genre_text = _config_value(self.api.plugin_config, "genre_list", "")
         if not isinstance(genre_text, str):
@@ -119,6 +131,9 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.api.plugin_config["show_genre"] = (
             self.show_genre_check.isChecked()
+        )
+        self.api.plugin_config["show_cover_info"] = (
+            self.show_cover_info_check.isChecked()
         )
         self.api.plugin_config["genre_list"] = self.genre_list_edit.toPlainText()
         self.api.plugin_config["list_row_spacing"] = (

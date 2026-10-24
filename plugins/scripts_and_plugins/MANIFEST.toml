@@ -2,6 +2,6 @@ uuid = "4c9f9480-ce95-4e5c-814c-88c2d5212b77"
 name = "Scripts & Plugins"
 description = "Fenster mit Tagging-Scripten, Plugin-Aktionen und Genre-Auswahl für die Auswahl im Hauptfenster; zusätzlich Cover-Informationen (Maße, Größe, Typ) im Cover-Panel."
 authors = ["Mirakuli Teebaum"]
-version = "0.11.1"
+version = "0.12.0"
 api = ["3.0"]
 license = "GPL-3.0-or-later"

@@ -8,6 +8,15 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.14.1] – 2026-10-24
+### Fixed
+- Deaktivieren des Plugins in der Pluginliste schlug mit „TypeError:
+  disable() missing 1 required positional argument: 'api'“ fehl:
+  Picard 3.0.2 ruft disable() ohne Argumente auf (verifiziert gegen
+  `picard/plugin3/plugin.py` — anders als enable(api)). disable()
+  hat jetzt keine Parameter mehr; das PluginApi-Objekt wird beim
+  Aktivieren in der Modul-Variable `_api` gehalten.
+
 ## [0.14.0] – 2026-10-24
 ### Added
 - „Tracks gemixt nummerieren“: zweite Nummerierungs-Schaltfläche —

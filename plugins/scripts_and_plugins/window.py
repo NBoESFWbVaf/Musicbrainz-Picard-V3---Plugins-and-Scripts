@@ -1,6 +1,6 @@
 """Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
 
-from PyQt6.QtCore import QWIDGETSIZE_MAX, QDateTime, QSize, Qt, QTimer
+from PyQt6.QtCore import QDateTime, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QDialog,
     QGroupBox,
@@ -31,6 +31,11 @@ from .helpers import (
     _config_value,
     _points_for_object,
 )
+
+# Qts Größenlimit für "keine Höchstgrenze gesetzt" (QWIDGETSIZE_MAX).
+# PyQt6 exportiert die Konstante nicht aus QtCore, deshalb hier als
+# literalen Wert definiert (identisch zu Qt: 2**24 - 1).
+_WIDGET_SIZE_MAX = 16777215
 
 
 class ListItemSpacingDelegate(QStyledItemDelegate):
@@ -65,7 +70,7 @@ class CompactListWidget(QListWidget):
         else:
             height = sum(self.sizeHintForRow(i) for i in range(count))
         height += 2 * self.frameWidth()
-        if self.maximumHeight() < QWIDGETSIZE_MAX:
+        if self.maximumHeight() < _WIDGET_SIZE_MAX:
             height = min(height, self.maximumHeight())
         return QSize(hint.width(), height)
 

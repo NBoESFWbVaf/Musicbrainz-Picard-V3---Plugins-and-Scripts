@@ -3,13 +3,15 @@
 Fügt der Picard-Symbolleiste eine eigene Schaltfläche hinzu, über die
 sich das Fenster "Scripts & Plugins" öffnen lässt. Das Fenster mit
 seinen Listen, dem Protokoll und der Ausführungslogik liegt in
-window.py, allgemeine Hilfsfunktionen und Konstanten in helpers.py.
+window.py, allgemeine Hilfsfunktionen und Konstanten in helpers.py,
+die Einstellungsseite in options_page.py.
 """
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QToolBar
 
+from .options_page import ScriptsPluginsOptionsPage
 from .window import ScriptsPluginsWindow
 
 # Fenster und Widgets global halten, damit Qt sie nicht wegräumt
@@ -34,6 +36,29 @@ def enable(api):
     """Wird beim Aktivieren des Plugins aufgerufen (UI ist zu diesem
     Zeitpunkt bereits verfügbar)."""
     global _toolbar, _action
+
+    # --- Optionen registrieren (Plugin-Konfiguration, profilfähig) ---
+    api.plugin_config.register_option(
+        "show_disabled_scripts",
+        True,
+        title="Deaktivierte Scripte in der Liste anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
+        "font_size_offset",
+        1,
+        title="Zusätzliche Schriftgröße (Punkte)",
+        in_profile=True,
+        bounds=(0, 5),
+    )
+    api.plugin_config.register_option(
+        "list_row_spacing",
+        6,
+        title="Zusätzlicher Zeilenabstand (Pixel)",
+        in_profile=True,
+        bounds=(0, 30),
+    )
+    api.register_options_page(ScriptsPluginsOptionsPage)
 
     window = api.tagger.window
     if window is None:

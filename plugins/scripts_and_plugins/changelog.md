@@ -8,6 +8,21 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.9.0] – 2026-10-24
+### Added
+- Neuer Bereich „Genre hinzufügen“ zwischen den Listen und dem
+  Protokoll: Dropdown mit den Genres aus der neuen Option „Genre-Liste“
+  (Textfeld in den Optionen, eine Genre pro Zeile, vorbelegt mit 20
+  Hauptstilrichtungen). Wird eine Genre gewählt, wird sie als `genre`-Tag
+  auf die im Hauptfenster markierten Objekte gesetzt (überschreibt ein
+  vorhandenes Genre-Tag; Speichern wie immer erst mit „Speichern“ in
+  Picard). Das Dropdown ist erst einmal leer (Platzhalter „Genre
+  wählen …“).
+- Neue Anzeige-Option „Genre-Auswahl anzeigen“ — der Genre-Bereich ist
+  wie alle anderen Bereiche ein- und ausblendbar.
+- Interne Umstellung: Die gemeinsame Metadaten-Schleife für Scripte und
+  Genre liegt jetzt in `_apply_to_metadata()` in `window.py`.
+
 ## [0.8.2] – 2026-10-24
 ### Fixed
 - Import-Fehler beim Laden des Plugins: `QWIDGETSIZE_MAX` wird von

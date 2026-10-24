@@ -546,13 +546,20 @@ class ScriptsPluginsWindow(QDialog):
                 for track in obj.tracks:
                     if apply_func(parser, track.metadata):
                         count += 1
+                        self._sync_track_files(track)
                     else:
                         failed += 1
                 if apply_func(parser, obj.metadata):
                     count += 1
                 else:
                     failed += 1
-            elif isinstance(obj, (Track, File)):
+            elif isinstance(obj, Track):
+                if apply_func(parser, obj.metadata):
+                    count += 1
+                    self._sync_track_files(obj)
+                else:
+                    failed += 1
+            elif isinstance(obj, File):
                 if apply_func(parser, obj.metadata):
                     count += 1
                 else:
@@ -582,6 +589,30 @@ class ScriptsPluginsWindow(QDialog):
                             "UI-Update für %r fehlgeschlagen", obj
                         )
         return changed, failed
+
+    def _sync_track_files(self, track):
+        """Manuelle Track-Änderungen in die gematchten Dateien übertragen.
+
+        Picard verwaltet die „neuen“ Metadaten einer Datei separat von
+        den Track-Metadaten: Manuelle Änderungen an track.metadata
+        erscheinen zwar in der Albensicht, erreichen die Datei aber nur
+        über Track.update_file_metadata() — derselbe Weg, den Picard
+        selbst beim Matchen einer Datei geht (dort laufen die Scripte
+        erneut und der manuelle Diff track.metadata vs.
+        scripted_metadata wird angewendet; gegen Picard 3.0.2
+        verifiziert). Ohne diesen Schritt zeigt das Datei-Detail die
+        Änderung nicht und Speichern schreibt sie nicht.
+        """
+        for file in list(getattr(track, "files", None) or []):
+            try:
+                track.update_file_metadata(file)
+            except Exception:
+                self.api.logger.exception(
+                    "Synchronisieren der Datei-Metadaten fehlgeschlagen "
+                    "für Track %r, Datei %r",
+                    track,
+                    file,
+                )
 
     def _apply_script(self, script, objs):
         """Script auf die ausgewählten Objekte anwenden."""

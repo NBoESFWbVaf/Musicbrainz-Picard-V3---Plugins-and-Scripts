@@ -113,8 +113,20 @@ class ScriptsPluginsWindow(QDialog):
             "Positions-Reihenfolge nacheinander auf der Auswahl aus"
         )
         self.run_action_button = QPushButton("Aktion ausführen", self)
+        self.overwrite_genres_button = QPushButton("Alle Genre überschreiben", self)
+        self.append_genre_button = QPushButton("Dieses Genre anhängen", self)
+        self.overwrite_genres_button.setToolTip(
+            "Ersetzt vorhandene Genre-Werte auf der Auswahl durch die "
+            "gewählte Genre"
+        )
+        self.append_genre_button.setToolTip(
+            "Hängt die gewählte Genre an vorhandene Genre-Werte an "
+            "(ohne Dubletten)"
+        )
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
+        self.overwrite_genres_button.setEnabled(False)
+        self.append_genre_button.setEnabled(False)
 
         # --- Script-Liste ---
         self.script_list = CompactListWidget(self)
@@ -163,20 +175,26 @@ class ScriptsPluginsWindow(QDialog):
 
         # --- Genre-Auswahl ---
         # Dropdown zwischen den Listen und dem Protokoll: Inhalt ist die
-        # Genre-Liste aus den Optionen (eine Zeile pro Genre); wird ein
-        # Eintrag gewählt, wird das Genre auf die Auswahl angewendet.
-        # Ohne Auswahl zeigt das Feld nur den Platzhalter.
+        # Genre-Liste aus den Optionen (eine Zeile pro Genre). Gewählt
+        # wird erst mit einer der beiden Schaltflächen angewendet —
+        # überschreiben oder anhängen. Ohne Auswahl zeigt das Feld nur
+        # den Platzhalter.
         self.genre_combo = QComboBox(self)
         self.genre_combo.setPlaceholderText("Genre wählen …")
         self.genre_combo.setToolTip(
-            "Setzt das gewählte Genre als Tag auf die im Hauptfenster "
-            "markierten Objekte"
+            "Genre wählen und unten überschreiben oder anhängen"
         )
         self.genre_box = QGroupBox("Genre hinzufügen", self)
         genre_layout = QVBoxLayout(self.genre_box)
         genre_layout.addWidget(self.genre_combo)
-        # Höhe fixieren (Combo plus Titel): Der Bereich soll beim
-        # Vergrößern des Fensters nicht wachsen.
+        # Beide Schaltflächen direkt unter dem Dropdown (rechtsbündig)
+        genre_footer = QHBoxLayout()
+        genre_footer.addStretch(1)
+        genre_footer.addWidget(self.overwrite_genres_button)
+        genre_footer.addWidget(self.append_genre_button)
+        genre_layout.addLayout(genre_footer)
+        # Höhe fixieren (Combo plus Fußzeile plus Titel): Der Bereich soll
+        # beim Vergrößern des Fensters nicht wachsen.
         self.genre_box.setMaximumHeight(self.genre_box.sizeHint().height())
 
         # --- Protokollfenster ---
@@ -220,7 +238,11 @@ class ScriptsPluginsWindow(QDialog):
         self.run_all_button.clicked.connect(self._run_all_scripts)
         self.run_script_button.clicked.connect(self._run_selected_script)
         self.run_action_button.clicked.connect(self._run_selected_action)
-        self.genre_combo.activated.connect(self._run_selected_genre)
+        self.overwrite_genres_button.clicked.connect(self._overwrite_genres)
+        self.append_genre_button.clicked.connect(self._append_genre)
+        self.genre_combo.currentIndexChanged.connect(
+            lambda *_: self._update_genre_buttons()
+        )
         self.script_list.itemDoubleClicked.connect(self._run_selected_script)
         self.action_list.itemDoubleClicked.connect(self._run_selected_action)
         self.script_list.currentItemChanged.connect(
@@ -573,39 +595,56 @@ class ScriptsPluginsWindow(QDialog):
 
     def _populate_genre_combo(self):
         """Dropdown aus der Option „genre_list“ füllen: eine Zeile pro
-        Genre, leere Zeilen werden übersprungen. Anschließend steht
-        keine Auswahl (Platzhalter), das Feld ist also erst einmal leer.
+        Genre, leere Zeilen werden übersprungen. Ohne Auswahl zeigt das
+        Feld nur den Platzhalter; eine bereits gewählte Genre bleibt
+        über Aktualisierungen hinweg erhalten (damit mehrere Auswahl-
+        Wechsel im Hauptfenster mit derselben Genre bearbeitet werden
+        können).
         """
+        previous = self.genre_combo.currentText().strip()
         text = _config_value(self.api.plugin_config, "genre_list", "")
         if not isinstance(text, str):
             text = ""
         genres = [line.strip() for line in text.splitlines() if line.strip()]
         self.genre_combo.clear()
         self.genre_combo.addItems(genres)
+        if previous:
+            index = self.genre_combo.findText(previous)
+            if index >= 0:
+                self.genre_combo.setCurrentIndex(index)
+                return
         self.genre_combo.setCurrentIndex(-1)
 
-    def _set_genre(self, metadata, genre):
-        """Genre-Tag setzen; True, wenn die Metadaten geändert wurden."""
+    def _update_genre_buttons(self):
+        """Beide Genre-Schaltflächen nur bei gewählter Genre freigeben."""
+        selected = bool(self.genre_combo.currentText().strip())
+        self.overwrite_genres_button.setEnabled(selected)
+        self.append_genre_button.setEnabled(selected)
+
+    def _set_genre(self, metadata, genre, append):
+        """Genre-Tag überschreiben (append=False: vorhandene Genre-Werte
+        werden ersetzt) bzw. gewählte Genre anhängen (append=True, ohne
+        Dubletten). True, wenn die Metadaten geändert wurden."""
         try:
-            if metadata.get("genre") != genre:
+            if append:
+                if genre in metadata.getall("genre"):
+                    return False
+                metadata.add_unique("genre", genre)
+            else:
+                if metadata.getall("genre") == [genre]:
+                    return False
                 metadata["genre"] = genre
-                metadata.strip_whitespace()
-                return True
-            return False
+            metadata.strip_whitespace()
+            return True
         except Exception:
             self.api.logger.exception(
                 "Fehler beim Setzen des Genres „%s“", genre
             )
             return False
 
-    def _run_selected_genre(self, _index=-1):
-        """Das im Dropdown gewählte Genre auf die Auswahl anwenden.
-
-        Wird über das activated-Signal aufgerufen — das feuert nur bei
-        echter Nutzer-Auswahl, nicht beim programmatischen Füllen, und
-        auch nicht beim Durchblättern mit der Tastatur.
-        """
-        genre = self.genre_combo.currentText().strip()
+    def _apply_genre(self, genre, append):
+        """Gewählte Genre per Schaltfläche auf die Auswahl anwenden."""
+        genre = (genre or "").strip()
         if not genre:
             return
         objs = self._selected_objects()
@@ -615,11 +654,16 @@ class ScriptsPluginsWindow(QDialog):
                 "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
             )
             return
-        self._log_message("Setze Genre „%s“ …" % genre)
+        self._log_message(
+            "Genre „%s“ %s …"
+            % (genre, "anhängen" if append else "überschreiben")
+        )
         try:
             changed, failed = self._apply_to_metadata(
                 objs,
-                lambda parser, metadata: self._set_genre(metadata, genre),
+                lambda parser, metadata: self._set_genre(
+                    metadata, genre, append
+                ),
             )
         except Exception:
             self.api.logger.exception(
@@ -634,15 +678,30 @@ class ScriptsPluginsWindow(QDialog):
         if failed:
             self._log_result(
                 False,
-                "Genre „%s“ mit Fehlern gesetzt: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
-                % (genre, changed, failed),
+                "Genre „%s“ mit Fehlern %s: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
+                % (
+                    genre,
+                    "angehängt" if append else "überschrieben",
+                    changed,
+                    failed,
+                ),
             )
         else:
             self._log_result(
                 True,
-                "Genre „%s“ gesetzt: %d Metadaten aktualisiert."
-                % (genre, changed),
+                "Genre „%s“ %s: %d Metadaten aktualisiert."
+                % (genre, "angehängt" if append else "überschrieben", changed),
             )
+
+    def _overwrite_genres(self, _checked=False):
+        """„Alle Genre überschreiben“: Die gewählte Genre ersetzt alle
+        vorhandenen Genre-Werte der Auswahl."""
+        self._apply_genre(self.genre_combo.currentText(), append=False)
+
+    def _append_genre(self, _checked=False):
+        """„Dieses Genre anhängen“: Die gewählte Genre wird an vorhandene
+        Genre-Werte angehängt (ohne Dubletten)."""
+        self._apply_genre(self.genre_combo.currentText(), append=True)
 
     def _run_selected_script(self, item=None):
         # Achtung: Beim Doppelklick liefert Qt das QListWidgetItem,

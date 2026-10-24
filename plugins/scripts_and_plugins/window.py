@@ -1,6 +1,6 @@
 """Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
 
-from PyQt6.QtCore import QDateTime, Qt, QTimer
+from PyQt6.QtCore import QWIDGETSIZE_MAX, QDateTime, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QDialog,
     QGroupBox,
@@ -46,6 +46,30 @@ class ListItemSpacingDelegate(QStyledItemDelegate):
         return size
 
 
+class CompactListWidget(QListWidget):
+    """Liste mit inhaltsbasierter Größen-Schätzung.
+
+    QListWidget liefert von Haus aus eine feste Standard-Größen-Schätzung
+    (unabhängig vom Inhalt). Für die kompakte Fensterhöhe brauchen wir
+    aber die tatsächliche Höhe aller Einträge: sizeHint() bildet sie aus
+    den Zeilen-Höhen ab und wird nie größer als die eingestellte
+    Höchsthöhe. Darauf bauen die Größen-Schätzungen der Bereichs-Boxen
+    und damit die Begrenzung des Listenbereichs auf.
+    """
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        count = self.count()
+        if count == 0:
+            height = self.sizeHintForRow(0)
+        else:
+            height = sum(self.sizeHintForRow(i) for i in range(count))
+        height += 2 * self.frameWidth()
+        if self.maximumHeight() < QWIDGETSIZE_MAX:
+            height = min(height, self.maximumHeight())
+        return QSize(hint.width(), height)
+
+
 class ScriptsPluginsWindow(QDialog):
     """Fenster mit Script- und Action-Liste.
 
@@ -87,7 +111,7 @@ class ScriptsPluginsWindow(QDialog):
         self.run_action_button.setEnabled(False)
 
         # --- Script-Liste ---
-        self.script_list = QListWidget(self)
+        self.script_list = CompactListWidget(self)
         self.script_list.setItemDelegate(
             ListItemSpacingDelegate(self.script_list)
         )
@@ -103,7 +127,7 @@ class ScriptsPluginsWindow(QDialog):
         scripts_layout.addLayout(scripts_footer)
 
         # --- Action-Liste ---
-        self.action_list = QListWidget(self)
+        self.action_list = CompactListWidget(self)
         self.action_list.setItemDelegate(
             ListItemSpacingDelegate(self.action_list)
         )
@@ -116,11 +140,11 @@ class ScriptsPluginsWindow(QDialog):
         actions_footer.addWidget(self.run_action_button)
         actions_layout.addLayout(actions_footer)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        splitter.addWidget(self.scripts_box)
-        splitter.addWidget(self.actions_box)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
+        self._lists_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self._lists_splitter.addWidget(self.scripts_box)
+        self._lists_splitter.addWidget(self.actions_box)
+        self._lists_splitter.setStretchFactor(0, 1)
+        self._lists_splitter.setStretchFactor(1, 1)
 
         # Untere Schaltflächenzeile: nur noch Fenster-übergreifendes
         button_layout = QHBoxLayout()
@@ -144,12 +168,15 @@ class ScriptsPluginsWindow(QDialog):
 
         # Vertikaler Splitter zwischen Listen und Protokoll: Die Höhe
         # des Protokollfensters lässt sich mit der Maus frei verstellen,
-        # ohne dass eines der beiden Bereiche ganz verschwindet.
+        # ohne dass einer der Bereiche ganz verschwindet. Überschüssiger
+        # Platz beim Vergrößern des Fensters geht ausschließlich ans
+        # Protokoll (Stretch 1); der Listenbereich (Stretch 0) wird über
+        # seine Höchsthöhe ohnehin kompakt gehalten.
         main_splitter = QSplitter(Qt.Orientation.Vertical, self)
-        main_splitter.addWidget(splitter)
+        main_splitter.addWidget(self._lists_splitter)
         main_splitter.addWidget(self.log_box)
-        main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 0)
+        main_splitter.setStretchFactor(0, 0)
+        main_splitter.setStretchFactor(1, 1)
         main_splitter.setCollapsible(0, False)
         main_splitter.setCollapsible(1, False)
         main_splitter.setSizes([520, 160])
@@ -377,13 +404,17 @@ class ScriptsPluginsWindow(QDialog):
         return count
 
     def _adjust_list_heights(self):
-        """Beide Listen maximal so hoch wie ihr Inhalt.
+        """Beide Listen maximal so hoch wie ihr Inhalt — und der gesamte
+        Listenbereich (Boxen inkl. Titel und Fußzeilen) ebenfalls.
 
         Die gemeinsame Höhe orientiert sich an der größeren der beiden
         Listen: Der letzte Eintrag des größeren Fensters begrenzt beide
-        Boxen — unterhalb der Einträge bleibt kein leerer Raum. Der
-        überschüssige Platz fällt stattdessen dem Protokoll zu (dort
-        greift der vertikale Splitter). Läuft nach jedem
+        Boxen — unterhalb der Einträge bleibt kein leerer Raum, die
+        Elemente verteilen sich also nicht beim Vergrößern des Fensters.
+        Der Listenbereich bekommt dafür eine Höchsthöhe (Größen-Schätzung
+        der größeren Box, getragen von CompactListWidget.sizeHint()),
+        sodass ihm der vertikale Splitter keinen Leerraum zuweisen kann;
+        überschüssiger Platz fällt dem Protokoll zu. Läuft nach jedem
         Listen-Neuaufbau, also auch nach Options-Änderungen, da
         sizeHintForRow() den Zeilenabstand des Delegates berücksichtigt.
         """
@@ -396,9 +427,19 @@ class ScriptsPluginsWindow(QDialog):
                 heights.append(
                     sum(list_widget.sizeHintForRow(i) for i in range(count))
                 )
-        content_height = max(heights) + 2 * self.script_list.frameWidth()
-        self.script_list.setMaximumHeight(content_height)
-        self.action_list.setMaximumHeight(content_height)
+        content_height = max(heights)
+        for list_widget in (self.script_list, self.action_list):
+            list_widget.setMaximumHeight(
+                content_height + 2 * list_widget.frameWidth()
+            )
+        # Benötigte Höhe des Listenbereichs: die größere der beiden
+        # Boxen (inkl. Titel, Ränder, Fußzeile) begrenzt den Splitter.
+        self._lists_splitter.setMaximumHeight(
+            max(
+                self.scripts_box.sizeHint().height(),
+                self.actions_box.sizeHint().height(),
+            )
+        )
 
     def refresh(self):
         """Vollständige Aktualisierung: Einstellungen, Listen, Statuszeile."""

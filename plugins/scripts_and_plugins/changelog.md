@@ -8,6 +8,26 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.7.0] – 2026-10-24
+### Added
+- Drei neue Anzeige-Optionen (Optionen → Plugins → Scripts & Plugins):
+  „Tagging-Scripte anzeigen“, „Plugin-Aktionen anzeigen“ und
+  „Protokoll anzeigen“ — jeder Fensterbereich (Script-Liste,
+  Aktions-Liste, Protokoll) lässt sich einzeln ein- und ausblenden.
+  Alle Optionen sind profilfähig und greifen live in einem offenen
+  Fenster.
+
+### Changed
+- Die Schaltflächen „Script ausführen“ und „Aktion ausführen“ liegen
+  jetzt direkt unter der jeweiligen Liste (rechtsbündig im
+  Gruppenfeld-Fuß), nicht mehr in der unteren Button-Leiste. Dort
+  verbleiben nur „Aktualisieren“ und „Leeren“.
+
+### Removed
+- Option „Zusätzliche Schriftgröße“ (0–5 Punkte) vollständig entfernt:
+  Sie funktionierte auf Systemen mit pixel-basierten Schriften
+  (z. B. Wayland mit Skalierung) nicht zuverlässig.
+
 ## [0.6.2] – 2026-10-24
 ### Fixed
 - Schriftgröße änderte sich nicht: Auf Systemen, die die Schrift in Pixeln

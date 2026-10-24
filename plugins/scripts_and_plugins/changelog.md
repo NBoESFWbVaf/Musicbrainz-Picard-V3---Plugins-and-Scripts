@@ -8,6 +8,19 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.11.0] – 2026-10-24
+### Added
+- Cover-Informationen im Cover-Panel des Hauptfensters (neues Modul
+  `coverinfo.py`, übernommen aus dem eigenständigen Plugin „Display
+  Coverinformation“, GPL-2-or-later): Maße (HöhexBreite px),
+  Dateigröße und Dateityp werden direkt unter den Vorschaubildern
+  angezeigt — für das neue Cover-Bild und das Original-Cover aus der
+  Datei; bei mehreren Bildern zusätzlich als Tabelle mit allen
+  Bildern. Aktiviert/deaktiviert zusammen mit dem Plugin;
+  Thread-Sicherheit über `to_main`, Aktualisierung über den zentralen
+  `CoverArtBox.update_display`-Einsprungspunkt (beide gegen Picard
+  3.0.2 verifiziert).
+
 ## [0.10.1] – 2026-10-24
 ### Fixed
 - Genre- und Script-Änderungen an Tracks (Album- oder Track-Auswahl)

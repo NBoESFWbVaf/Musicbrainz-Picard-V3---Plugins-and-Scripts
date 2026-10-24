@@ -76,7 +76,12 @@ class ScriptsPluginsWindow(QDialog):
         self.refresh_button = QPushButton("Aktualisieren", self)
         self.clear_log_button = QPushButton("Leeren", self)
         self.clear_log_button.setToolTip("Protokoll leeren")
-        self.run_script_button = QPushButton("Script ausführen", self)
+        self.run_script_button = QPushButton("Gewähltes Script ausführen", self)
+        self.run_all_button = QPushButton("Alle aktiven Scripte ausführen", self)
+        self.run_all_button.setToolTip(
+            "Führt alle aktivierten Tagging-Scripte in "
+            "Positions-Reihenfolge nacheinander auf der Auswahl aus"
+        )
         self.run_action_button = QPushButton("Aktion ausführen", self)
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
@@ -88,21 +93,13 @@ class ScriptsPluginsWindow(QDialog):
         )
         self.scripts_box = QGroupBox("Tagging-Scripte", self)
         scripts_layout = QVBoxLayout(self.scripts_box)
-        # Rechtsbündige Kopfzeile über der Script-Liste
-        scripts_header = QHBoxLayout()
-        scripts_header.addStretch(1)
-        self.run_all_button = QPushButton("Alle aktiven Scripte ausführen", self)
-        self.run_all_button.setToolTip(
-            "Führt alle aktivierten Tagging-Scripte in "
-            "Positions-Reihenfolge nacheinander auf der Auswahl aus"
-        )
-        scripts_header.addWidget(self.run_all_button)
-        scripts_layout.addLayout(scripts_header)
         scripts_layout.addWidget(self.script_list)
-        # „Script ausführen“ direkt unter der Script-Liste
+        # Beide Ausführungs-Schaltflächen direkt unter der Script-Liste
+        # (rechtsbündig, „Alle aktiven Scripte ausführen“ rechts daneben)
         scripts_footer = QHBoxLayout()
         scripts_footer.addStretch(1)
         scripts_footer.addWidget(self.run_script_button)
+        scripts_footer.addWidget(self.run_all_button)
         scripts_layout.addLayout(scripts_footer)
 
         # --- Action-Liste ---
@@ -379,6 +376,30 @@ class ScriptsPluginsWindow(QDialog):
             )
         return count
 
+    def _adjust_list_heights(self):
+        """Beide Listen maximal so hoch wie ihr Inhalt.
+
+        Die gemeinsame Höhe orientiert sich an der größeren der beiden
+        Listen: Der letzte Eintrag des größeren Fensters begrenzt beide
+        Boxen — unterhalb der Einträge bleibt kein leerer Raum. Der
+        überschüssige Platz fällt stattdessen dem Protokoll zu (dort
+        greift der vertikale Splitter). Läuft nach jedem
+        Listen-Neuaufbau, also auch nach Options-Änderungen, da
+        sizeHintForRow() den Zeilenabstand des Delegates berücksichtigt.
+        """
+        heights = []
+        for list_widget in (self.script_list, self.action_list):
+            count = list_widget.count()
+            if count == 0:
+                heights.append(list_widget.sizeHintForRow(0))
+            else:
+                heights.append(
+                    sum(list_widget.sizeHintForRow(i) for i in range(count))
+                )
+        content_height = max(heights) + 2 * self.script_list.frameWidth()
+        self.script_list.setMaximumHeight(content_height)
+        self.action_list.setMaximumHeight(content_height)
+
     def refresh(self):
         """Vollständige Aktualisierung: Einstellungen, Listen, Statuszeile."""
         self._apply_display_settings()
@@ -389,6 +410,7 @@ class ScriptsPluginsWindow(QDialog):
             self._needed_points.update(_points_for_object(obj))
         num_scripts = self._populate_scripts()
         num_actions = self._populate_actions(objs)
+        self._adjust_list_heights()
         self._set_status(
             "Auswahl im Hauptfenster: %d Objekt(e) · %d Script(e) · %d Aktion(en)"
             % (len(objs), num_scripts, num_actions)

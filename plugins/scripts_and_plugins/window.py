@@ -1,7 +1,7 @@
 """Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
 
 from PyQt6.QtCore import QDateTime, Qt, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QFontInfo
 from PyQt6.QtWidgets import (
     QDialog,
     QGroupBox,
@@ -185,6 +185,18 @@ class ScriptsPluginsWindow(QDialog):
         self._poll_timer.timeout.connect(self._check_selection_changed)
         self._install_selection_tracking()
 
+        # --- Live-Aktualisierung bei Optionsänderungen ---
+        # Die Plugin-Konfiguration ist ein QObject und sendet setting_changed,
+        # sobald ein Wert geschrieben wird — auch aus dem Optionsdialog.
+        try:
+            self.api.plugin_config.setting_changed.connect(
+                self._on_plugin_setting_changed
+            )
+        except Exception:
+            # Signal nicht verfügbar: Einstellungen greifen dann über den
+            # regulären Aktualisierungs-Pfad (refresh() wendet sie an).
+            pass
+
     # ------------------------------------------------------------------
     # Hilfsfunktionen
 
@@ -218,14 +230,25 @@ class ScriptsPluginsWindow(QDialog):
     def _apply_display_settings(self):
         """Schriftgröße und Zeilenabstand aus den Plugin-Optionen anwenden.
 
-        Wird beim Anzeigen des Fensters aufgerufen, damit Änderungen aus
-        den Picard-Optionen beim nächsten Öffnen greifen, ohne dass
-        Picard neu gestartet werden muss.
+        Läuft bei jeder Aktualisierung (Öffnen, Toolbar-Klick,
+        „Aktualisieren“) sowie live beim Ändern der Optionen über das
+        setting_changed-Signal der Plugin-Konfiguration.
         """
         offset = _config_value(self.api.plugin_config, "font_size_offset", 1)
         font = QFont(self._base_font)
-        if offset > 0 and font.pointSize() > 0:
-            font.setPointSize(font.pointSize() + offset)
+        if offset > 0:
+            # Manche Systeme (z. B. Wayland mit Skalierung) definieren die
+            # Schrift in Pixeln statt Punkten — dann liefert pointSize() -1
+            # und der Punkte-Offset muss über die Bildschirm-DPI in Pixel
+            # umgerechnet werden (72 Punkte = 1 Zoll).
+            info = QFontInfo(self._base_font)
+            if info.pointSize() > 0:
+                font.setPointSize(info.pointSize() + offset)
+            elif info.pixelSize() > 0:
+                dpi = self.logicalDpiY() or 96
+                font.setPixelSize(
+                    int(round(info.pixelSize() + offset * dpi / 72.0))
+                )
         self.setFont(font)
         spacing = _config_value(self.api.plugin_config, "list_row_spacing", 6)
         self.script_list.setItemDelegate(
@@ -234,6 +257,15 @@ class ScriptsPluginsWindow(QDialog):
         self.action_list.setItemDelegate(
             ListItemSpacingDelegate(self.action_list, spacing)
         )
+
+    def _on_plugin_setting_changed(self, name, old_value, new_value):
+        """Live-Reaktion auf Optionsänderungen (z. B. im Optionsdialog)."""
+        if name in (
+            "font_size_offset",
+            "list_row_spacing",
+            "show_disabled_scripts",
+        ):
+            self.refresh()
 
     # ------------------------------------------------------------------
     # Auswahl-Verfolgung
@@ -346,7 +378,8 @@ class ScriptsPluginsWindow(QDialog):
         return count
 
     def refresh(self):
-        """Vollständige Aktualisierung beider Listen und der Statuszeile."""
+        """Vollständige Aktualisierung: Einstellungen, Listen, Statuszeile."""
+        self._apply_display_settings()
         objs = self._selected_objects()
         self._last_selection_signature = self._selection_signature(objs)
         self._needed_points = set()
@@ -590,7 +623,6 @@ class ScriptsPluginsWindow(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        self._apply_display_settings()
         self.refresh()
         if self._use_poll_timer and not self._poll_timer.isActive():
             self._poll_timer.start()

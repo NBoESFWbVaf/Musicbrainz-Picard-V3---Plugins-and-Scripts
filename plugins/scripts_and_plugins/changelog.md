@@ -8,6 +8,13 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.5.1] – 2026-10-24
+### Changed
+- Code-Struktur: Der Fenster-Code ist in `window.py` ausgelagert, allgemeine
+  Hilfsfunktionen und Konstanten in `helpers.py`. Die `__init__.py` enthält
+  nur noch den Einstiegspunkt (`enable`/`disable`) und die Toolbar-Integration;
+  eingebunden wird per relativer Imports. Keine funktionalen Änderungen.
+
 ## [0.5.0] – 2026-10-24
 ### Added
 - Button „Alle aktiven Scripte ausführen“ rechtsbündig über der Script-Liste:

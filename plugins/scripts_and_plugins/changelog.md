@@ -8,6 +8,27 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.14.0] – 2026-10-24
+### Added
+- „Tracks gemixt nummerieren“: zweite Nummerierungs-Schaltfläche —
+  zufällige Reihenfolge pro Disc, dabei folgt derselbe Interpret
+  (Tag `artist` der Track-Metadaten) nie unmittelbar auf sich selbst,
+  soweit vermeidbar (bei einem Interpreten für alle Tracks wird die
+  Regel zwangsläufig aufgehoben, die Nummerierung läuft immer
+  durch). Sonst wie „Tracks neu nummerieren“: nur Tracks mit
+  vorhandener Datei, `totaltracks` je Disc = Anzahl der Tracks mit
+  Datei, Sync über `Track.update_file_metadata()`.
+- Neue Option „Nummerierung anzeigen“ (Voreinstellung: an,
+  profilfähig) blendet den Nummerierungsbereich ein bzw. aus.
+
+### Changed
+- Die Nummerierung ist jetzt ein eigener Bereich „Nummerierung“
+  direkt neben der Genre-Auswahl (eigene Box im horizontalen Splitter,
+  analog zu Script- und Action-Liste), nicht mehr Bestandteil der
+  Genre-Box. Diese heißt wieder „Genre hinzufügen“; die Option
+  `show_genre` heißt wieder „Genre-Auswahl anzeigen“ und steuert nur
+  die Genre-Auswahl.
+
 ## [0.13.0] – 2026-10-24
 ### Added
 - „Tracks neu nummerieren“: neue Schaltfläche im Bereich „Genre &

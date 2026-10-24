@@ -29,7 +29,9 @@ class ScriptsPluginsOptionsPage(OptionsPage):
     # Widget-Attribute, die sie im Optionsdialog darstellen.
     OPTIONS: ClassVar[PageOptionConfigs] = {
         "show_disabled_scripts": {"widgets": ["show_disabled_scripts_check"]},
-        "font_size_offset": {"widgets": ["font_size_offset_spin"]},
+        "show_scripts_list": {"widgets": ["show_scripts_list_check"]},
+        "show_actions_list": {"widgets": ["show_actions_list_check"]},
+        "show_log": {"widgets": ["show_log_check"]},
         "list_row_spacing": {"widgets": ["list_row_spacing_spin"]},
     }
 
@@ -39,16 +41,24 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.show_disabled_scripts_check = QCheckBox(
             "Deaktivierte Scripte in der Liste anzeigen", self
         )
-        self.font_size_offset_spin = QSpinBox(self)
-        self.font_size_offset_spin.setRange(0, 5)
-        self.font_size_offset_spin.setSuffix(" Punkt(e)")
+        self.show_scripts_list_check = QCheckBox(
+            "Tagging-Scripte anzeigen", self
+        )
+        self.show_actions_list_check = QCheckBox(
+            "Plugin-Aktionen anzeigen", self
+        )
+        self.show_log_check = QCheckBox(
+            "Protokoll anzeigen", self
+        )
         self.list_row_spacing_spin = QSpinBox(self)
         self.list_row_spacing_spin.setRange(0, 30)
         self.list_row_spacing_spin.setSuffix(" Pixel")
 
         form = QFormLayout()
         form.addRow(self.show_disabled_scripts_check)
-        form.addRow("Zusätzliche Schriftgröße:", self.font_size_offset_spin)
+        form.addRow(self.show_scripts_list_check)
+        form.addRow(self.show_actions_list_check)
+        form.addRow(self.show_log_check)
         form.addRow("Zusätzlicher Zeilenabstand:", self.list_row_spacing_spin)
 
         layout = QVBoxLayout(self)
@@ -60,8 +70,14 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.show_disabled_scripts_check.setChecked(
             _config_value(self.api.plugin_config, "show_disabled_scripts", True)
         )
-        self.font_size_offset_spin.setValue(
-            _config_value(self.api.plugin_config, "font_size_offset", 1)
+        self.show_scripts_list_check.setChecked(
+            _config_value(self.api.plugin_config, "show_scripts_list", True)
+        )
+        self.show_actions_list_check.setChecked(
+            _config_value(self.api.plugin_config, "show_actions_list", True)
+        )
+        self.show_log_check.setChecked(
+            _config_value(self.api.plugin_config, "show_log", True)
         )
         self.list_row_spacing_spin.setValue(
             _config_value(self.api.plugin_config, "list_row_spacing", 6)
@@ -72,8 +88,14 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.api.plugin_config["show_disabled_scripts"] = (
             self.show_disabled_scripts_check.isChecked()
         )
-        self.api.plugin_config["font_size_offset"] = (
-            self.font_size_offset_spin.value()
+        self.api.plugin_config["show_scripts_list"] = (
+            self.show_scripts_list_check.isChecked()
+        )
+        self.api.plugin_config["show_actions_list"] = (
+            self.show_actions_list_check.isChecked()
+        )
+        self.api.plugin_config["show_log"] = (
+            self.show_log_check.isChecked()
         )
         self.api.plugin_config["list_row_spacing"] = (
             self.list_row_spacing_spin.value()

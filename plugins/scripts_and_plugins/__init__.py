@@ -136,6 +136,16 @@ class ScriptsPluginsWindow(QDialog):
         )
         scripts_box = QGroupBox("Tagging-Scripte", self)
         scripts_layout = QVBoxLayout(scripts_box)
+        # Rechtsbündige Kopfzeile über der Script-Liste
+        scripts_header = QHBoxLayout()
+        scripts_header.addStretch(1)
+        self.run_all_button = QPushButton("Alle aktiven Scripte ausführen", self)
+        self.run_all_button.setToolTip(
+            "Führt alle aktivierten Tagging-Scripte in "
+            "Positions-Reihenfolge nacheinander auf der Auswahl aus"
+        )
+        scripts_header.addWidget(self.run_all_button)
+        scripts_layout.addLayout(scripts_header)
         scripts_layout.addWidget(self.script_list)
 
         # --- Action-Liste ---
@@ -203,6 +213,7 @@ class ScriptsPluginsWindow(QDialog):
         # --- Signale verbinden ---
         self.refresh_button.clicked.connect(self.refresh)
         self.clear_log_button.clicked.connect(self.log_view.clear)
+        self.run_all_button.clicked.connect(self._run_all_scripts)
         self.run_script_button.clicked.connect(self._run_selected_script)
         self.run_action_button.clicked.connect(self._run_selected_action)
         self.script_list.itemDoubleClicked.connect(self._run_selected_script)
@@ -484,6 +495,76 @@ class ScriptsPluginsWindow(QDialog):
                 True,
                 "Script „%s“ ausgeführt: %d Metadaten in %d Objekt(en) aktualisiert."
                 % (script.name, changed, len(objs)),
+            )
+
+    def _run_all_scripts(self, _checked=False):
+        """Alle aktivierten Scripte nacheinander auf der Auswahl ausführen.
+
+        Die Reihenfolge entspricht der Position der Scripte — dieselbe
+        Reihenfolge, die Picard auch beim Release-Import verwendet.
+        Deaktivierte Scripte werden übersprungen.
+        """
+        objs = self._selected_objects()
+        if not objs:
+            self._log_result(
+                False,
+                "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
+            )
+            return
+        scripts = []
+        for row in range(self.script_list.count()):
+            data = self.script_list.item(row).data(Qt.ItemDataRole.UserRole)
+            if data is not None and getattr(data, "enabled", False):
+                scripts.append(data)
+        if not scripts:
+            self._log_result(False, "Keine aktiven Tagging-Scripte gefunden.")
+            return
+        self._log_message(
+            "Starte %d aktive(s) Script(e) auf %d Objekt(en) …"
+            % (len(scripts), len(objs))
+        )
+        total_changed = 0
+        total_failed = 0
+        for script in scripts:
+            self._log_message("Script „%s“ gestartet …" % script.name)
+            try:
+                changed, failed = self._apply_script(script, objs)
+            except Exception:
+                self.api.logger.exception(
+                    "Unerwarteter Fehler beim Ausführen des Scriptes %s", script.name
+                )
+                self._log_result(
+                    False,
+                    "Script „%s“ — unerwarteter Fehler, Details im Picard-Log."
+                    % script.name,
+                )
+                total_failed += 1
+                continue
+            total_changed += changed
+            total_failed += failed
+            if failed:
+                self._log_result(
+                    False,
+                    "Script „%s“ mit Fehlern abgeschlossen: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
+                    % (script.name, changed, failed),
+                )
+            else:
+                self._log_result(
+                    True,
+                    "Script „%s“ ausgeführt: %d Metadaten in %d Objekt(en) aktualisiert."
+                    % (script.name, changed, len(objs)),
+                )
+        if total_failed:
+            self._log_result(
+                False,
+                "Alle Scripte abgeschlossen: %d Metadaten geändert, %d Fehler insgesamt — Details im Picard-Log."
+                % (total_changed, total_failed),
+            )
+        else:
+            self._log_result(
+                True,
+                "Alle Scripte abgeschlossen: %d Metadaten in %d Objekt(en) aktualisiert."
+                % (total_changed, len(objs)),
             )
 
     # ------------------------------------------------------------------

@@ -72,7 +72,13 @@ def enable(api):
     api.plugin_config.register_option(
         "show_genre",
         True,
-        title="Genre-Auswahl und Nummerierung anzeigen",
+        title="Genre-Auswahl anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
+        "show_numbering",
+        True,
+        title="Nummerierung anzeigen",
         in_profile=True,
     )
     api.plugin_config.register_option(

@@ -8,6 +8,19 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.8.0] – 2026-10-24
+### Changed
+- Die Listen „Tagging-Scripte“ und „Plugin-Aktionen“ sind maximal so
+  hoch wie ihr Inhalt: Die gemeinsame Höhe orientiert sich an der
+  größeren der beiden Listen — unterhalb des letzten Eintrags bleibt
+  kein leerer Raum, der überschüssige Platz fällt dem Protokoll zu.
+  Die Begrenzung wird nach jedem Listen-Neuaufbau neu berechnet und
+  berücksichtigt auch den eingestellten Zeilenabstand.
+- Der Button „Alle aktiven Scripte ausführen“ liegt jetzt unterhalb
+  der Script-Liste, rechts neben der Ausführen-Schaltfläche (statt
+  in einer Kopfzeile über der Liste).
+- „Script ausführen“ heißt jetzt „Gewähltes Script ausführen“.
+
 ## [0.7.0] – 2026-10-24
 ### Added
 - Drei neue Anzeige-Optionen (Optionen → Plugins → Scripts & Plugins):

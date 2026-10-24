@@ -8,6 +8,13 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.8.2] – 2026-10-24
+### Fixed
+- Import-Fehler beim Laden des Plugins: `QWIDGETSIZE_MAX` wird von
+  PyQt6 nicht aus `QtCore` exportiert (anders als PyQt5). Die Konstante
+  ist jetzt als lokaler Wert `_WIDGET_SIZE_MAX` in `window.py`
+  definiert (identisch zu Qt: 2**24 − 1 = 16777215).
+
 ## [0.8.1] – 2026-10-24
 ### Fixed
 - Beim Vergrößern des Fensters verteilten sich die Elemente innerhalb

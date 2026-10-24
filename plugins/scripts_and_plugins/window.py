@@ -1,5 +1,7 @@
 """Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
 
+import random
+
 from PyQt6.QtCore import QDateTime, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -129,11 +131,20 @@ class ScriptsPluginsWindow(QDialog):
             "nur Tracks mit vorhandener Datei, lückenlos ab 1; "
             "totaltracks = Anzahl der Tracks mit Datei je Disc"
         )
+        self.mix_button = QPushButton("Tracks gemixt nummerieren", self)
+        self.mix_button.setToolTip(
+            "Nummeriert die Tracks des gewählten Albums pro Disc "
+            "zufällig neu — derselbe Interpret folgt nie unmittelbar "
+            "auf sich selbst (soweit vermeidbar); nur Tracks mit "
+            "vorhandener Datei, totaltracks = Anzahl der Tracks mit "
+            "Datei je Disc"
+        )
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
         self.overwrite_genres_button.setEnabled(False)
         self.append_genre_button.setEnabled(False)
         self.renumber_button.setEnabled(False)
+        self.mix_button.setEnabled(False)
 
         # --- Script-Liste ---
         self.script_list = CompactListWidget(self)
@@ -191,19 +202,42 @@ class ScriptsPluginsWindow(QDialog):
         self.genre_combo.setToolTip(
             "Genre wählen und unten überschreiben oder anhängen"
         )
-        self.genre_box = QGroupBox("Genre & Nummerierung", self)
+        self.genre_box = QGroupBox("Genre hinzufügen", self)
         genre_layout = QVBoxLayout(self.genre_box)
         genre_layout.addWidget(self.genre_combo)
-        # Alle Schaltflächen direkt unter dem Dropdown (rechtsbündig)
+        # Beide Schaltflächen direkt unter dem Dropdown (rechtsbündig)
         genre_footer = QHBoxLayout()
         genre_footer.addStretch(1)
         genre_footer.addWidget(self.overwrite_genres_button)
         genre_footer.addWidget(self.append_genre_button)
-        genre_footer.addWidget(self.renumber_button)
         genre_layout.addLayout(genre_footer)
         # Höhe fixieren (Combo plus Fußzeile plus Titel): Der Bereich soll
         # beim Vergrößern des Fensters nicht wachsen.
         self.genre_box.setMaximumHeight(self.genre_box.sizeHint().height())
+
+        # --- Nummerierung ---
+        # Eigener Bereich neben der Genre-Auswahl (analog zu Script-
+        # und Action-Liste als eigener Kasten) mit den beiden
+        # Nummerierungs-Schaltflächen.
+        self.numbering_box = QGroupBox("Nummerierung", self)
+        numbering_layout = QVBoxLayout(self.numbering_box)
+        numbering_footer = QHBoxLayout()
+        numbering_footer.addStretch(1)
+        numbering_footer.addWidget(self.renumber_button)
+        numbering_footer.addWidget(self.mix_button)
+        numbering_layout.addLayout(numbering_footer)
+        self.numbering_box.setMaximumHeight(
+            self.numbering_box.sizeHint().height()
+        )
+
+        # Genre-Auswahl und Nummerierung nebeneinander
+        self.genre_numbering_splitter = QSplitter(
+            Qt.Orientation.Horizontal, self
+        )
+        self.genre_numbering_splitter.addWidget(self.genre_box)
+        self.genre_numbering_splitter.addWidget(self.numbering_box)
+        self.genre_numbering_splitter.setStretchFactor(0, 1)
+        self.genre_numbering_splitter.setStretchFactor(1, 1)
 
         # --- Protokollfenster ---
         self.log_view = QTextEdit(self)
@@ -216,16 +250,16 @@ class ScriptsPluginsWindow(QDialog):
         log_layout = QVBoxLayout(self.log_box)
         log_layout.addWidget(self.log_view)
 
-        # Vertikaler Splitter zwischen Listen, Genre-Auswahl und
-        # Protokoll: Die Höhe des Protokollfensters lässt sich mit der
+        # Vertikaler Splitter zwischen Listen, Genre-Auswahl/Nummerierung
+        # und Protokoll: Die Höhe des Protokollfensters lässt sich mit der
         # Maus frei verstellen, ohne dass einer der Bereiche ganz
         # verschwindet. Überschüssiger Platz beim Vergrößern des
         # Fensters geht ausschließlich ans Protokoll (Stretch 1);
-        # Listenbereich und Genre-Auswahl (Stretch 0) werden über ihre
-        # Höchsthöhen ohnehin kompakt gehalten.
+        # Listenbereich und Genre/Nummerierung (Stretch 0) werden über
+        # ihre Höchsthöhen ohnehin kompakt gehalten.
         main_splitter = QSplitter(Qt.Orientation.Vertical, self)
         main_splitter.addWidget(self._lists_splitter)
-        main_splitter.addWidget(self.genre_box)
+        main_splitter.addWidget(self.genre_numbering_splitter)
         main_splitter.addWidget(self.log_box)
         main_splitter.setStretchFactor(0, 0)
         main_splitter.setStretchFactor(1, 0)
@@ -233,7 +267,7 @@ class ScriptsPluginsWindow(QDialog):
         main_splitter.setCollapsible(0, False)
         main_splitter.setCollapsible(1, False)
         main_splitter.setCollapsible(2, False)
-        main_splitter.setSizes([520, 80, 160])
+        main_splitter.setSizes([520, 100, 140])
 
         layout = QVBoxLayout(self)
         layout.addWidget(main_splitter, 1)
@@ -249,6 +283,7 @@ class ScriptsPluginsWindow(QDialog):
         self.overwrite_genres_button.clicked.connect(self._overwrite_genres)
         self.append_genre_button.clicked.connect(self._append_genre)
         self.renumber_button.clicked.connect(self._renumber_tracks)
+        self.mix_button.clicked.connect(self._renumber_tracks_mixed)
         self.genre_combo.currentIndexChanged.connect(
             lambda *_: self._update_genre_buttons()
         )
@@ -344,6 +379,9 @@ class ScriptsPluginsWindow(QDialog):
         self.genre_box.setVisible(
             _config_value(self.api.plugin_config, "show_genre", True)
         )
+        self.numbering_box.setVisible(
+            _config_value(self.api.plugin_config, "show_numbering", True)
+        )
 
     def _on_plugin_setting_changed(self, name, old_value, new_value):
         """Live-Reaktion auf Optionsänderungen (z. B. im Optionsdialog)."""
@@ -352,6 +390,7 @@ class ScriptsPluginsWindow(QDialog):
             "show_actions_list",
             "show_log",
             "show_genre",
+            "show_numbering",
             "genre_list",
             "list_row_spacing",
             "show_disabled_scripts",
@@ -518,9 +557,9 @@ class ScriptsPluginsWindow(QDialog):
         num_actions = self._populate_actions(objs)
         self._populate_genre_combo()
         # Nummerierung nur bei Album-Auswahl anbieten
-        self.renumber_button.setEnabled(
-            any(isinstance(obj, Album) for obj in objs)
-        )
+        album_selected = any(isinstance(obj, Album) for obj in objs)
+        self.renumber_button.setEnabled(album_selected)
+        self.mix_button.setEnabled(album_selected)
         self._adjust_list_heights()
         self._set_status(
             "Auswahl im Hauptfenster: %d Objekt(e) · %d Script(e) · %d Aktion(en)"
@@ -751,12 +790,60 @@ class ScriptsPluginsWindow(QDialog):
     # Ausführen: Nummerierung
 
     def _renumber_tracks(self, _checked=False):
-        """„Tracks neu nummerieren“: Nur für Album-Auswahl.
+        """„Tracks neu nummerieren“: Pro Disc lückenlos, in der Track-
+        Reihenfolge des Albums (Details siehe _renumber_selected_albums)."""
+        self._renumber_selected_albums("neu", None)
+
+    def _renumber_tracks_mixed(self, _checked=False):
+        """„Tracks gemixt nummerieren“: Pro Disc zufällige Reihenfolge,
+        ohne denselben Interpreten zweimal hintereinander (Details
+        siehe _renumber_selected_albums und _shuffled_no_repeat)."""
+        self._renumber_selected_albums(
+            "gemischt neu", self._shuffled_no_repeat
+        )
+
+    def _track_artist(self, track):
+        """Interpret eines Tracks aus den Track-Metadaten (leerer String
+        als Fallback)."""
+        try:
+            return (track.metadata.get("artist") or "").strip()
+        except Exception:
+            return ""
+
+    def _shuffled_no_repeat(self, tracks):
+        """Zufällige Reihenfolge mit Interpreten-Abstand.
+
+        Pro Schritt wird zufällig aus den noch übrigen Tracks gewählt,
+        deren Interpret sich vom zuletzt gewählten unterscheidet. Ist
+        das nicht möglich (z. B. alle Tracks vom selben Interpret),
+        wird aus allen übrigen gewählt — die Nummerierung läuft so
+        immer durch und hält die Regel, wo sie haltbar ist.
+        """
+        remaining = list(tracks)
+        result = []
+        last_artist = None
+        while remaining:
+            different = [
+                track
+                for track in remaining
+                if self._track_artist(track) != last_artist
+            ]
+            pool = different or remaining
+            pick = random.choice(pool)
+            remaining.remove(pick)
+            result.append(pick)
+            last_artist = self._track_artist(pick)
+        return result
+
+    def _renumber_selected_albums(self, label, order_func):
+        """Gemeinsamer Kern beider Nummerierungs-Schaltflächen: Nur für
+        Album-Auswahl.
 
         Pro Disc (Gruppierung nach discnumber der Track-Metadaten,
-        Voreinstellung „1“) werden die Tracks in der Track-Reihenfolge
-        des Albums lückenlos neu nummeriert (1, 2, 3, …) — aber nur
-        Tracks mit gematchter Datei; Tracks ohne Datei bleiben
+        Voreinstellung „1“) werden die Tracks mit gematchter Datei
+        nummeriert (1, 2, 3, …) — order_func bestimmt die Reihenfolge
+        (None = Track-Reihenfolge des Albums, _shuffled_no_repeat =
+        zufällig mit Interpreten-Abstand); Tracks ohne Datei bleiben
         komplett unberührt. totaltracks erhält die Anzahl der Tracks
         mit Datei der jeweiligen Disc. Die Änderungen laufen über
         track.metadata und werden über Track.update_file_metadata()
@@ -774,8 +861,8 @@ class ScriptsPluginsWindow(QDialog):
             )
             return
         self._log_message(
-            "Nummeriere %d Album(x) neu (nur Tracks mit vorhandener "
-            "Datei) …" % len(albums)
+            "Nummeriere %d Album(x) %s (nur Tracks mit vorhandener "
+            "Datei) …" % (len(albums), label)
         )
         changed = 0
         skipped = 0
@@ -801,8 +888,11 @@ class ScriptsPluginsWindow(QDialog):
                         for track in disc_groups[disc]
                         if getattr(track, "files", None)
                     ]
-                    total = len(available)
-                    for position, track in enumerate(available, start=1):
+                    ordered = (
+                        order_func(available) if order_func else available
+                    )
+                    total = len(ordered)
+                    for position, track in enumerate(ordered, start=1):
                         track.metadata["tracknumber"] = str(position)
                         track.metadata["totaltracks"] = str(total)
                         self._sync_track_files(track)
@@ -829,8 +919,9 @@ class ScriptsPluginsWindow(QDialog):
         if changed:
             self._log_result(
                 True,
-                "Nummerierung: %d Track(s) mit Datei neu nummeriert, "
-                "%d Track(s) ohne Datei übersprungen." % (changed, skipped),
+                "Nummerierung: %d Track(s) mit Datei %s nummeriert, "
+                "%d Track(s) ohne Datei übersprungen."
+                % (changed, label, skipped),
             )
         else:
             self._log_result(

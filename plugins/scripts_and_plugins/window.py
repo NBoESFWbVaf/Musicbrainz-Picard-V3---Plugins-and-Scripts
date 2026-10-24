@@ -1,6 +1,7 @@
 """Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
 
 from PyQt6.QtCore import QDateTime, Qt, QTimer
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QDialog,
     QGroupBox,
@@ -35,11 +36,13 @@ from .helpers import (
 class ListItemSpacingDelegate(QStyledItemDelegate):
     """Zeilenabstand in den Listen vergrößern."""
 
-    EXTRA_SPACING = 6  # zusätzliche Pixel pro Zeile
+    def __init__(self, parent=None, extra_spacing=6):
+        super().__init__(parent)
+        self.extra_spacing = extra_spacing
 
     def sizeHint(self, option, index):
         size = super().sizeHint(option, index)
-        size.setHeight(size.height() + self.EXTRA_SPACING)
+        size.setHeight(size.height() + self.extra_spacing)
         return size
 
 
@@ -68,11 +71,9 @@ class ScriptsPluginsWindow(QDialog):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        # Schrift im gesamten Fenster einen Punkt größer stellen.
-        font = self.font()
-        if font.pointSize() > 0:
-            font.setPointSize(font.pointSize() + 1)
-        self.setFont(font)
+        # Ausgangsschrift merken; Größe und Zeilenabstand werden über
+        # _apply_display_settings() aus den Plugin-Optionen gesetzt.
+        self._base_font = self.font()
 
         # --- Script-Liste ---
         self.script_list = QListWidget(self)
@@ -213,6 +214,26 @@ class ScriptsPluginsWindow(QDialog):
             % (timestamp, color, symbol, text)
         )
 
+    def _apply_display_settings(self):
+        """Schriftgröße und Zeilenabstand aus den Plugin-Optionen anwenden.
+
+        Wird beim Anzeigen des Fensters aufgerufen, damit Änderungen aus
+        den Picard-Optionen beim nächsten Öffnen greifen, ohne dass
+        Picard neu gestartet werden muss.
+        """
+        offset = self.api.plugin_config.get("font_size_offset", 1)
+        font = QFont(self._base_font)
+        if offset > 0 and font.pointSize() > 0:
+            font.setPointSize(font.pointSize() + offset)
+        self.setFont(font)
+        spacing = self.api.plugin_config.get("list_row_spacing", 6)
+        self.script_list.setItemDelegate(
+            ListItemSpacingDelegate(self.script_list, spacing)
+        )
+        self.action_list.setItemDelegate(
+            ListItemSpacingDelegate(self.action_list, spacing)
+        )
+
     # ------------------------------------------------------------------
     # Auswahl-Verfolgung
 
@@ -278,7 +299,10 @@ class ScriptsPluginsWindow(QDialog):
         except Exception:
             self.api.logger.exception("Tagging-Scripte konnten nicht geladen werden.")
             return 0
+        show_disabled = self.api.plugin_config.get("show_disabled_scripts", True)
         for script in scripts:
+            if not script.enabled and not show_disabled:
+                continue
             label = script.name if script.enabled else "%s (deaktiviert)" % script.name
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, script)
@@ -563,6 +587,7 @@ class ScriptsPluginsWindow(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self._apply_display_settings()
         self.refresh()
         if self._use_poll_timer and not self._poll_timer.isActive():
             self._poll_timer.start()

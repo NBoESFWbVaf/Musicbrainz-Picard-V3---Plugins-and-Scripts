@@ -4,13 +4,16 @@ Fügt der Picard-Symbolleiste eine eigene Schaltfläche hinzu, über die
 sich das Fenster "Scripts & Plugins" öffnen lässt. Das Fenster mit
 seinen Listen, dem Protokoll und der Ausführungslogik liegt in
 window.py, allgemeine Hilfsfunktionen und Konstanten in helpers.py,
-die Einstellungsseite in options_page.py.
+die Einstellungsseite in options_page.py. Die Cover-Informationen im
+Cover-Panel des Hauptfensters (Modul coverinfo.py) werden hier mit
+aktiviert und deaktiviert.
 """
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QToolBar
 
+from .coverinfo import disable_cover_info, enable_cover_info
 from .helpers import _DEFAULT_GENRE_LIST
 from .options_page import ScriptsPluginsOptionsPage
 from .window import ScriptsPluginsWindow
@@ -103,10 +106,19 @@ def enable(api):
     _toolbar.addAction(_action)
     window.addToolBar(_toolbar)
 
+    # --- Cover-Informationen im Cover-Panel (Modul coverinfo.py) ---
+    # Kümmert sich selbst um Thread-Sicherheit (Verschiebung in den
+    # Haupt-Thread über to_main) und ist intern gegen fehlende
+    # Cover-Panel-Interna abgesichert.
+    enable_cover_info(api)
+
 
 def disable(api):
     """Aufräumen: Symbolleiste entfernen, Fenster schließen."""
     global _toolbar, _action, _window
+
+    # Cover-Info-Widgets und CoverArtBox-Patch aus coverinfo.py entfernen
+    disable_cover_info()
 
     window = api.tagger.window
 

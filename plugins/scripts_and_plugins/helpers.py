@@ -26,6 +26,30 @@ _ACTION_POINTS = (
     (ext_point_clusterlist_actions, "Cluster-Liste"),
 )
 
+# Vorbelegung für die Genre-Liste (Option „genre_list“):
+# Hauptstilrichtungen der Musik, eine pro Zeile — als Vorschlag frei
+# editierbar; das Dropdown im Fenster zeigt genau diese Zeilen.
+_DEFAULT_GENRE_LIST = """Rock
+Pop
+Classical
+Jazz
+Blues
+Hip Hop
+Electronic
+House
+Techno
+Metal
+Punk
+Country
+Folk
+Soul
+Funk
+R&B
+Reggae
+Latin
+World
+Soundtrack"""
+
 
 def _points_for_object(obj):
     """Passende Action-Extension-Points für ein Objekt ermitteln."""

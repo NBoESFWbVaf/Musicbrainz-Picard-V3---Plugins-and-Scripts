@@ -8,6 +8,21 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.8.1] – 2026-10-24
+### Fixed
+- Beim Vergrößern des Fensters verteilten sich die Elemente innerhalb
+  der Listen-Boxen gleichmäßig im neuen Raum (unschöne Optik): Der
+  vertikale Splitter gab überschüssigen Höhe an den Listenbereich
+  weiter (falscher Stretch-Faktor) statt ans Protokoll. Der
+  Listenbereich behält jetzt seine benötigte Höhe — die Einträge,
+  Schaltflächen und das Protokoll wandern beim Vergrößern nicht mehr
+  auseinander; zusätzlicher Platz geht ausschließlich ans Protokoll.
+- Dafür liefert die Liste jetzt eine inhaltsbasierte
+  Größen-Schätzung statt des festen Qt-Standardwerts (neue Unterklasse
+  `CompactListWidget` mit `sizeHint()` über alle Zeilen), und der
+  Listenbereich erhält eine Höchsthöhe aus der Größen-Schätzung der
+  größeren Box, sodass ihm der Splitter nie Leerraum zuweisen kann.
+
 ## [0.8.0] – 2026-10-24
 ### Changed
 - Die Listen „Tagging-Scripte“ und „Plugin-Aktionen“ sind maximal so

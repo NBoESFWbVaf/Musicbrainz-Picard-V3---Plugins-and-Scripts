@@ -55,7 +55,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
             "Protokoll anzeigen", self
         )
         self.show_genre_check = QCheckBox(
-            "Genre-Auswahl anzeigen", self
+            "Genre-Auswahl und Nummerierung anzeigen", self
         )
         self.show_cover_info_check = QCheckBox(
             "Cover-Informationen anzeigen", self

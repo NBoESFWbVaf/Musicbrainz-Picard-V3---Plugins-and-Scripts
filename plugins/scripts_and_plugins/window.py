@@ -2,6 +2,7 @@
 
 from PyQt6.QtCore import QDateTime, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QGroupBox,
     QHBoxLayout,
@@ -160,6 +161,24 @@ class ScriptsPluginsWindow(QDialog):
         self._status = QLabel("Öffne das Fenster oder klicke auf „Aktualisieren“.", self)
         self._status.setWordWrap(True)
 
+        # --- Genre-Auswahl ---
+        # Dropdown zwischen den Listen und dem Protokoll: Inhalt ist die
+        # Genre-Liste aus den Optionen (eine Zeile pro Genre); wird ein
+        # Eintrag gewählt, wird das Genre auf die Auswahl angewendet.
+        # Ohne Auswahl zeigt das Feld nur den Platzhalter.
+        self.genre_combo = QComboBox(self)
+        self.genre_combo.setPlaceholderText("Genre wählen …")
+        self.genre_combo.setToolTip(
+            "Setzt das gewählte Genre als Tag auf die im Hauptfenster "
+            "markierten Objekte"
+        )
+        self.genre_box = QGroupBox("Genre hinzufügen", self)
+        genre_layout = QVBoxLayout(self.genre_box)
+        genre_layout.addWidget(self.genre_combo)
+        # Höhe fixieren (Combo plus Titel): Der Bereich soll beim
+        # Vergrößern des Fensters nicht wachsen.
+        self.genre_box.setMaximumHeight(self.genre_box.sizeHint().height())
+
         # --- Protokollfenster ---
         self.log_view = QTextEdit(self)
         self.log_view.setReadOnly(True)
@@ -171,20 +190,24 @@ class ScriptsPluginsWindow(QDialog):
         log_layout = QVBoxLayout(self.log_box)
         log_layout.addWidget(self.log_view)
 
-        # Vertikaler Splitter zwischen Listen und Protokoll: Die Höhe
-        # des Protokollfensters lässt sich mit der Maus frei verstellen,
-        # ohne dass einer der Bereiche ganz verschwindet. Überschüssiger
-        # Platz beim Vergrößern des Fensters geht ausschließlich ans
-        # Protokoll (Stretch 1); der Listenbereich (Stretch 0) wird über
-        # seine Höchsthöhe ohnehin kompakt gehalten.
+        # Vertikaler Splitter zwischen Listen, Genre-Auswahl und
+        # Protokoll: Die Höhe des Protokollfensters lässt sich mit der
+        # Maus frei verstellen, ohne dass einer der Bereiche ganz
+        # verschwindet. Überschüssiger Platz beim Vergrößern des
+        # Fensters geht ausschließlich ans Protokoll (Stretch 1);
+        # Listenbereich und Genre-Auswahl (Stretch 0) werden über ihre
+        # Höchsthöhen ohnehin kompakt gehalten.
         main_splitter = QSplitter(Qt.Orientation.Vertical, self)
         main_splitter.addWidget(self._lists_splitter)
+        main_splitter.addWidget(self.genre_box)
         main_splitter.addWidget(self.log_box)
         main_splitter.setStretchFactor(0, 0)
-        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setStretchFactor(1, 0)
+        main_splitter.setStretchFactor(2, 1)
         main_splitter.setCollapsible(0, False)
         main_splitter.setCollapsible(1, False)
-        main_splitter.setSizes([520, 160])
+        main_splitter.setCollapsible(2, False)
+        main_splitter.setSizes([520, 80, 160])
 
         layout = QVBoxLayout(self)
         layout.addWidget(main_splitter, 1)
@@ -197,6 +220,7 @@ class ScriptsPluginsWindow(QDialog):
         self.run_all_button.clicked.connect(self._run_all_scripts)
         self.run_script_button.clicked.connect(self._run_selected_script)
         self.run_action_button.clicked.connect(self._run_selected_action)
+        self.genre_combo.activated.connect(self._run_selected_genre)
         self.script_list.itemDoubleClicked.connect(self._run_selected_script)
         self.action_list.itemDoubleClicked.connect(self._run_selected_action)
         self.script_list.currentItemChanged.connect(
@@ -286,6 +310,9 @@ class ScriptsPluginsWindow(QDialog):
         self.log_box.setVisible(
             _config_value(self.api.plugin_config, "show_log", True)
         )
+        self.genre_box.setVisible(
+            _config_value(self.api.plugin_config, "show_genre", True)
+        )
 
     def _on_plugin_setting_changed(self, name, old_value, new_value):
         """Live-Reaktion auf Optionsänderungen (z. B. im Optionsdialog)."""
@@ -293,6 +320,8 @@ class ScriptsPluginsWindow(QDialog):
             "show_scripts_list",
             "show_actions_list",
             "show_log",
+            "show_genre",
+            "genre_list",
             "list_row_spacing",
             "show_disabled_scripts",
         ):
@@ -456,6 +485,7 @@ class ScriptsPluginsWindow(QDialog):
             self._needed_points.update(_points_for_object(obj))
         num_scripts = self._populate_scripts()
         num_actions = self._populate_actions(objs)
+        self._populate_genre_combo()
         self._adjust_list_heights()
         self._set_status(
             "Auswahl im Hauptfenster: %d Objekt(e) · %d Script(e) · %d Aktion(en)"
@@ -476,13 +506,14 @@ class ScriptsPluginsWindow(QDialog):
             )
             return False
 
-    def _apply_script(self, script, objs):
-        """Script auf die ausgewählten Objekte anwenden.
+    def _apply_to_metadata(self, objs, apply_func):
+        """apply_func(parser, metadata) auf alle Metadaten der Auswahl
+        anwenden.
 
-        Folgt dem Muster aus Album._finalize_loading_album: pro Script
+        Folgt dem Muster aus Album._finalize_loading_album: pro Aufruf
         ein frischer ScriptParser, Auswertung gegen die Track- bzw.
-        Album-Metadaten, danach strip_whitespace() und UI-Update.
-        Gibt (geänderte Metadaten, fehlgeschlagene Auswertungen) zurück.
+        Album-Metadaten, danach UI-Update über obj.update(). Gibt
+        (geänderte Metadaten, fehlgeschlagene Anwendungen) zurück.
         """
         parser = ScriptParser()
         changed = 0
@@ -491,22 +522,22 @@ class ScriptsPluginsWindow(QDialog):
             count = 0
             if isinstance(obj, Album):
                 for track in obj.tracks:
-                    if self._eval_script(parser, script, track.metadata):
+                    if apply_func(parser, track.metadata):
                         count += 1
                     else:
                         failed += 1
-                if self._eval_script(parser, script, obj.metadata):
+                if apply_func(parser, obj.metadata):
                     count += 1
                 else:
                     failed += 1
             elif isinstance(obj, (Track, File)):
-                if self._eval_script(parser, script, obj.metadata):
+                if apply_func(parser, obj.metadata):
                     count += 1
                 else:
                     failed += 1
             elif isinstance(obj, Cluster):
                 for file in obj.files:
-                    if self._eval_script(parser, script, file.metadata):
+                    if apply_func(parser, file.metadata):
                         count += 1
                     else:
                         failed += 1
@@ -514,7 +545,7 @@ class ScriptsPluginsWindow(QDialog):
                 # Fallback für sonstige Objekte mit Metadaten (z. B. NATs)
                 metadata = getattr(obj, "metadata", None)
                 if metadata is not None:
-                    if self._eval_script(parser, script, metadata):
+                    if apply_func(parser, metadata):
                         count += 1
                     else:
                         failed += 1
@@ -529,6 +560,89 @@ class ScriptsPluginsWindow(QDialog):
                             "UI-Update für %r fehlgeschlagen", obj
                         )
         return changed, failed
+
+    def _apply_script(self, script, objs):
+        """Script auf die ausgewählten Objekte anwenden."""
+        return self._apply_to_metadata(
+            objs,
+            lambda parser, metadata: self._eval_script(parser, script, metadata),
+        )
+
+    # ------------------------------------------------------------------
+    # Ausführen: Genre
+
+    def _populate_genre_combo(self):
+        """Dropdown aus der Option „genre_list“ füllen: eine Zeile pro
+        Genre, leere Zeilen werden übersprungen. Anschließend steht
+        keine Auswahl (Platzhalter), das Feld ist also erst einmal leer.
+        """
+        text = _config_value(self.api.plugin_config, "genre_list", "")
+        if not isinstance(text, str):
+            text = ""
+        genres = [line.strip() for line in text.splitlines() if line.strip()]
+        self.genre_combo.clear()
+        self.genre_combo.addItems(genres)
+        self.genre_combo.setCurrentIndex(-1)
+
+    def _set_genre(self, metadata, genre):
+        """Genre-Tag setzen; True, wenn die Metadaten geändert wurden."""
+        try:
+            if metadata.get("genre") != genre:
+                metadata["genre"] = genre
+                metadata.strip_whitespace()
+                return True
+            return False
+        except Exception:
+            self.api.logger.exception(
+                "Fehler beim Setzen des Genres „%s“", genre
+            )
+            return False
+
+    def _run_selected_genre(self, _index=-1):
+        """Das im Dropdown gewählte Genre auf die Auswahl anwenden.
+
+        Wird über das activated-Signal aufgerufen — das feuert nur bei
+        echter Nutzer-Auswahl, nicht beim programmatischen Füllen, und
+        auch nicht beim Durchblättern mit der Tastatur.
+        """
+        genre = self.genre_combo.currentText().strip()
+        if not genre:
+            return
+        objs = self._selected_objects()
+        if not objs:
+            self._log_result(
+                False,
+                "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
+            )
+            return
+        self._log_message("Setze Genre „%s“ …" % genre)
+        try:
+            changed, failed = self._apply_to_metadata(
+                objs,
+                lambda parser, metadata: self._set_genre(metadata, genre),
+            )
+        except Exception:
+            self.api.logger.exception(
+                "Unerwarteter Fehler beim Setzen des Genres „%s“", genre
+            )
+            self._log_result(
+                False,
+                "Genre „%s“ — unerwarteter Fehler, Details im Picard-Log."
+                % genre,
+            )
+            return
+        if failed:
+            self._log_result(
+                False,
+                "Genre „%s“ mit Fehlern gesetzt: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
+                % (genre, changed, failed),
+            )
+        else:
+            self._log_result(
+                True,
+                "Genre „%s“ gesetzt: %d Metadaten aktualisiert."
+                % (genre, changed),
+            )
 
     def _run_selected_script(self, item=None):
         # Achtung: Beim Doppelklick liefert Qt das QListWidgetItem,

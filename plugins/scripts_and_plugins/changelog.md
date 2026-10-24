@@ -8,6 +8,22 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.10.0] – 2026-10-24
+### Added
+- Zwei Schaltflächen im Genre-Bereich: **„Alle Genre überschreiben“**
+  ersetzt vorhandene Genre-Werte der Auswahl durch die im Dropdown
+  gewählte Genre, **„Dieses Genre anhängen“** hängt die gewählte Genre
+  an vorhandene Genre-Werte an (ohne Dubletten). Beide sind nur bei
+  gewählter Genre freigeschaltet.
+- Die gewählte Genre bleibt über Aktualisierungen hinweg im Dropdown
+  erhalten — so lassen sich mehrere Auswahl-Wechsel im Hauptfenster
+  nacheinander mit derselben Genre bearbeiten.
+
+### Changed
+- Das Dropdown wendet die Genre nicht mehr automatisch bei der Auswahl
+  an; die Anwendung erfolgt jetzt ausschließlich über die beiden
+  Schaltflächen (gleiches Muster wie Listen-Auswahl plus Schaltfläche).
+
 ## [0.9.0] – 2026-10-24
 ### Added
 - Neuer Bereich „Genre hinzufügen“ zwischen den Listen und dem

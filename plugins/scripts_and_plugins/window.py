@@ -123,10 +123,17 @@ class ScriptsPluginsWindow(QDialog):
             "Hängt die gewählte Genre an vorhandene Genre-Werte an "
             "(ohne Dubletten)"
         )
+        self.renumber_button = QPushButton("Tracks neu nummerieren", self)
+        self.renumber_button.setToolTip(
+            "Nummeriert die Tracks des gewählten Albums pro Disc neu: "
+            "nur Tracks mit vorhandener Datei, lückenlos ab 1; "
+            "totaltracks = Anzahl der Tracks mit Datei je Disc"
+        )
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
         self.overwrite_genres_button.setEnabled(False)
         self.append_genre_button.setEnabled(False)
+        self.renumber_button.setEnabled(False)
 
         # --- Script-Liste ---
         self.script_list = CompactListWidget(self)
@@ -184,14 +191,15 @@ class ScriptsPluginsWindow(QDialog):
         self.genre_combo.setToolTip(
             "Genre wählen und unten überschreiben oder anhängen"
         )
-        self.genre_box = QGroupBox("Genre hinzufügen", self)
+        self.genre_box = QGroupBox("Genre & Nummerierung", self)
         genre_layout = QVBoxLayout(self.genre_box)
         genre_layout.addWidget(self.genre_combo)
-        # Beide Schaltflächen direkt unter dem Dropdown (rechtsbündig)
+        # Alle Schaltflächen direkt unter dem Dropdown (rechtsbündig)
         genre_footer = QHBoxLayout()
         genre_footer.addStretch(1)
         genre_footer.addWidget(self.overwrite_genres_button)
         genre_footer.addWidget(self.append_genre_button)
+        genre_footer.addWidget(self.renumber_button)
         genre_layout.addLayout(genre_footer)
         # Höhe fixieren (Combo plus Fußzeile plus Titel): Der Bereich soll
         # beim Vergrößern des Fensters nicht wachsen.
@@ -240,6 +248,7 @@ class ScriptsPluginsWindow(QDialog):
         self.run_action_button.clicked.connect(self._run_selected_action)
         self.overwrite_genres_button.clicked.connect(self._overwrite_genres)
         self.append_genre_button.clicked.connect(self._append_genre)
+        self.renumber_button.clicked.connect(self._renumber_tracks)
         self.genre_combo.currentIndexChanged.connect(
             lambda *_: self._update_genre_buttons()
         )
@@ -508,6 +517,10 @@ class ScriptsPluginsWindow(QDialog):
         num_scripts = self._populate_scripts()
         num_actions = self._populate_actions(objs)
         self._populate_genre_combo()
+        # Nummerierung nur bei Album-Auswahl anbieten
+        self.renumber_button.setEnabled(
+            any(isinstance(obj, Album) for obj in objs)
+        )
         self._adjust_list_heights()
         self._set_status(
             "Auswahl im Hauptfenster: %d Objekt(e) · %d Script(e) · %d Aktion(en)"
@@ -733,6 +746,98 @@ class ScriptsPluginsWindow(QDialog):
         """„Dieses Genre anhängen“: Die gewählte Genre wird an vorhandene
         Genre-Werte angehängt (ohne Dubletten)."""
         self._apply_genre(self.genre_combo.currentText(), append=True)
+
+    # ------------------------------------------------------------------
+    # Ausführen: Nummerierung
+
+    def _renumber_tracks(self, _checked=False):
+        """„Tracks neu nummerieren“: Nur für Album-Auswahl.
+
+        Pro Disc (Gruppierung nach discnumber der Track-Metadaten,
+        Voreinstellung „1“) werden die Tracks in der Track-Reihenfolge
+        des Albums lückenlos neu nummeriert (1, 2, 3, …) — aber nur
+        Tracks mit gematchter Datei; Tracks ohne Datei bleiben
+        komplett unberührt. totaltracks erhält die Anzahl der Tracks
+        mit Datei der jeweiligen Disc. Die Änderungen laufen über
+        track.metadata und werden über Track.update_file_metadata()
+        (siehe _sync_track_files) in die gematchten Dateien übertragen
+        — sichtbar im Datei-Detail (Spalte „Neu“) und mit „Speichern“
+        in die Dateien geschrieben.
+        """
+        objs = self._selected_objects()
+        albums = [obj for obj in objs if isinstance(obj, Album)]
+        if not albums:
+            self._log_result(
+                False,
+                "Nummerierung braucht eine Album-Auswahl im "
+                "Hauptfenster — bitte zuerst ein Album markieren.",
+            )
+            return
+        self._log_message(
+            "Nummeriere %d Album(x) neu (nur Tracks mit vorhandener "
+            "Datei) …" % len(albums)
+        )
+        changed = 0
+        skipped = 0
+        try:
+            for album in albums:
+                # Tracks in Album-Reihenfolge nach Disc gruppieren.
+                # discnumber als Gruppenschlüssel (Rohwert der
+                # Metadaten, z. B. „1“ oder „2/3“); ohne Discnumber
+                # zählen alle Tracks zu Disc „1“.
+                disc_groups = {}
+                disc_order = []
+                for track in album.tracks:
+                    disc = str(
+                        track.metadata.get("discnumber", "1") or "1"
+                    )
+                    if disc not in disc_groups:
+                        disc_groups[disc] = []
+                        disc_order.append(disc)
+                    disc_groups[disc].append(track)
+                for disc in disc_order:
+                    available = [
+                        track
+                        for track in disc_groups[disc]
+                        if getattr(track, "files", None)
+                    ]
+                    total = len(available)
+                    for position, track in enumerate(available, start=1):
+                        track.metadata["tracknumber"] = str(position)
+                        track.metadata["totaltracks"] = str(total)
+                        self._sync_track_files(track)
+                    skipped += len(disc_groups[disc]) - total
+                    changed += total
+                update = getattr(album, "update", None)
+                if callable(update):
+                    try:
+                        update()
+                    except Exception:
+                        self.api.logger.exception(
+                            "UI-Update für %r fehlgeschlagen", album
+                        )
+        except Exception:
+            self.api.logger.exception(
+                "Unerwarteter Fehler bei der Nummerierung"
+            )
+            self._log_result(
+                False,
+                "Nummerierung — unerwarteter Fehler, Details im "
+                "Picard-Log.",
+            )
+            return
+        if changed:
+            self._log_result(
+                True,
+                "Nummerierung: %d Track(s) mit Datei neu nummeriert, "
+                "%d Track(s) ohne Datei übersprungen." % (changed, skipped),
+            )
+        else:
+            self._log_result(
+                False,
+                "Nummerierung: keine Tracks mit vorhandener Datei "
+                "gefunden.",
+            )
 
     def _run_selected_script(self, item=None):
         # Achtung: Beim Doppelklick liefert Qt das QListWidgetItem,

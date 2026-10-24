@@ -9,6 +9,7 @@ from typing import ClassVar
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFormLayout,
+    QPlainTextEdit,
     QSpinBox,
     QVBoxLayout,
 )
@@ -32,6 +33,8 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         "show_scripts_list": {"widgets": ["show_scripts_list_check"]},
         "show_actions_list": {"widgets": ["show_actions_list_check"]},
         "show_log": {"widgets": ["show_log_check"]},
+        "show_genre": {"widgets": ["show_genre_check"]},
+        "genre_list": {"widgets": ["genre_list_edit"]},
         "list_row_spacing": {"widgets": ["list_row_spacing_spin"]},
     }
 
@@ -50,6 +53,14 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.show_log_check = QCheckBox(
             "Protokoll anzeigen", self
         )
+        self.show_genre_check = QCheckBox(
+            "Genre-Auswahl anzeigen", self
+        )
+        self.genre_list_edit = QPlainTextEdit(self)
+        self.genre_list_edit.setPlaceholderText(
+            "Eine Genre pro Zeile …"
+        )
+        self.genre_list_edit.setMinimumHeight(120)
         self.list_row_spacing_spin = QSpinBox(self)
         self.list_row_spacing_spin.setRange(0, 30)
         self.list_row_spacing_spin.setSuffix(" Pixel")
@@ -59,6 +70,8 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         form.addRow(self.show_scripts_list_check)
         form.addRow(self.show_actions_list_check)
         form.addRow(self.show_log_check)
+        form.addRow(self.show_genre_check)
+        form.addRow("Genre-Liste (eine Genre pro Zeile):", self.genre_list_edit)
         form.addRow("Zusätzlicher Zeilenabstand:", self.list_row_spacing_spin)
 
         layout = QVBoxLayout(self)
@@ -79,6 +92,13 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.show_log_check.setChecked(
             _config_value(self.api.plugin_config, "show_log", True)
         )
+        self.show_genre_check.setChecked(
+            _config_value(self.api.plugin_config, "show_genre", True)
+        )
+        genre_text = _config_value(self.api.plugin_config, "genre_list", "")
+        if not isinstance(genre_text, str):
+            genre_text = ""
+        self.genre_list_edit.setPlainText(genre_text)
         self.list_row_spacing_spin.setValue(
             _config_value(self.api.plugin_config, "list_row_spacing", 6)
         )
@@ -97,6 +117,10 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.api.plugin_config["show_log"] = (
             self.show_log_check.isChecked()
         )
+        self.api.plugin_config["show_genre"] = (
+            self.show_genre_check.isChecked()
+        )
+        self.api.plugin_config["genre_list"] = self.genre_list_edit.toPlainText()
         self.api.plugin_config["list_row_spacing"] = (
             self.list_row_spacing_spin.value()
         )

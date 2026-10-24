@@ -8,6 +8,21 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.13.0] – 2026-10-24
+### Added
+- „Tracks neu nummerieren“: neue Schaltfläche im Bereich „Genre &
+  Nummerierung“ (nur bei Album-Auswahl freigeschaltet). Nummeriert
+  pro Disc (Gruppierung nach `discnumber`, Voreinstellung „1“) die
+  Tracks in der Track-Reihenfolge des Albums lückenlos neu — nur
+  Tracks mit gematchter Datei; Tracks ohne Datei bleiben komplett
+  unberührt. `totaltracks` wird je Disc auf die Anzahl der Tracks
+  mit Datei gesetzt. Die Änderungen werden über
+  `Track.update_file_metadata()` in die gematchten Dateien übertragen
+  (Spalte „Neu“ im Datei-Detail, Schreiben mit „Speichern“). Der
+  Bereich heißt jetzt „Genre & Nummerierung“; die Option
+  „show_genre“ steuert ihn mit (Titel jetzt „Genre-Auswahl und
+  Nummerierung anzeigen“).
+
 ## [0.12.0] – 2026-10-24
 ### Added
 - Neue Option „Cover-Informationen anzeigen“ (Voreinstellung: an) auf

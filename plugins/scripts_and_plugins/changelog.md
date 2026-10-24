@@ -8,6 +8,20 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.10.1] – 2026-10-24
+### Fixed
+- Genre- und Script-Änderungen an Tracks (Album- oder Track-Auswahl)
+  erschienen zwar in der Albensicht, aber weder im Datei-Detail noch
+  wurden sie beim Speichern in die Dateien geschrieben: Picard hält
+  die „neuen“ Metadaten jeder Datei separat, und manuelle Änderungen an
+  den Track-Metadaten erreichen sie nur über
+  `Track.update_file_metadata()` — derselbe Aufruf, den Picard selbst
+  beim Matchen einer Datei verwendet. Das Plugin ruft diese
+  Synchronisierung jetzt nach jeder geänderten Track-Metadaten für
+  alle gematchten Dateien auf. Damit erscheinen Genre und
+  Script-Ergebnisse auch im Datei-Detail (Spalte „Neu“) und werden
+  mit „Speichern“ in die Dateien geschrieben.
+
 ## [0.10.0] – 2026-10-24
 ### Added
 - Zwei Schaltflächen im Genre-Bereich: **„Alle Genre überschreiben“**

@@ -14,7 +14,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QToolBar
 
 from .coverinfo import disable_cover_info, enable_cover_info
-from .helpers import _DEFAULT_GENRE_LIST
+from .helpers import _config_value, _DEFAULT_GENRE_LIST
 from .options_page import ScriptsPluginsOptionsPage
 from .window import ScriptsPluginsWindow
 
@@ -23,6 +23,9 @@ from .window import ScriptsPluginsWindow
 _window = None
 _toolbar = None
 _action = None
+# Live-Handler für die Cover-Option (für das saubere Trennen der
+# Signal-Verbindung in disable()).
+_cover_info_setting_handler = None
 
 
 def show_scripts_plugins_window(api, parent):
@@ -39,7 +42,7 @@ def show_scripts_plugins_window(api, parent):
 def enable(api):
     """Wird beim Aktivieren des Plugins aufgerufen (UI ist zu diesem
     Zeitpunkt bereits verfügbar)."""
-    global _toolbar, _action
+    global _toolbar, _action, _cover_info_setting_handler
 
     # --- Optionen registrieren (Plugin-Konfiguration, profilfähig) ---
     api.plugin_config.register_option(
@@ -70,6 +73,12 @@ def enable(api):
         "show_genre",
         True,
         title="Genre-Auswahl anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
+        "show_cover_info",
+        True,
+        title="Cover-Informationen anzeigen",
         in_profile=True,
     )
     api.plugin_config.register_option(
@@ -109,13 +118,44 @@ def enable(api):
     # --- Cover-Informationen im Cover-Panel (Modul coverinfo.py) ---
     # Kümmert sich selbst um Thread-Sicherheit (Verschiebung in den
     # Haupt-Thread über to_main) und ist intern gegen fehlende
-    # Cover-Panel-Interna abgesichert.
-    enable_cover_info(api)
+    # Cover-Panel-Interna abgesichert. Die Anzeige lässt sich über die
+    # Option „show_cover_info“ ein- und ausschalten — auch live, ohne
+    # Neustart: Die Plugin-Konfiguration sendet setting_changed, sobald
+    # der Optionsdialog den Wert schreibt.
+    def _on_cover_info_setting_changed(name, old_value, new_value):
+        if name != "show_cover_info":
+            return
+        if new_value:
+            enable_cover_info(api)
+        else:
+            disable_cover_info()
+
+    try:
+        api.plugin_config.setting_changed.connect(_on_cover_info_setting_changed)
+        _cover_info_setting_handler = _on_cover_info_setting_changed
+    except Exception:
+        # Signal nicht verfügbar: Die Option greift dann erst nach
+        # einem Neustart (enable() liest sie beim Start aus).
+        _cover_info_setting_handler = None
+
+    if _config_value(api.plugin_config, "show_cover_info", True):
+        enable_cover_info(api)
 
 
 def disable(api):
     """Aufräumen: Symbolleiste entfernen, Fenster schließen."""
-    global _toolbar, _action, _window
+    global _toolbar, _action, _window, _cover_info_setting_handler
+
+    # Live-Handler für die Cover-Option lösen, falls er verbunden wurde.
+    if _cover_info_setting_handler is not None:
+        try:
+            api.plugin_config.setting_changed.disconnect(
+                _cover_info_setting_handler
+            )
+        except Exception:
+            # Verbindung bestand nicht mehr (z. B. nach Reload).
+            pass
+        _cover_info_setting_handler = None
 
     # Cover-Info-Widgets und CoverArtBox-Patch aus coverinfo.py entfernen
     disable_cover_info()

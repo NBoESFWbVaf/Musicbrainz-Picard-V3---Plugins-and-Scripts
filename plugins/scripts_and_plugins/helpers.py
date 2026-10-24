@@ -50,3 +50,18 @@ def _action_title(action_class):
     except Exception:
         title = None
     return str(title) if title else action_class.__name__
+
+
+def _config_value(plugin_config, name, fallback):
+    """Wert aus der Plugin-Konfiguration lesen, mit Fallback.
+
+    ProfileConfigSection besitzt in Picard 3.0.2 keine get()-Methode;
+    __getitem__ liefert None für unregistrierte Optionen. Da enable()
+    alle Optionen mit Default registriert, greift der Fallback nur als
+    Sicherheitsnetz (z. B. bei künftigen API-Änderungen).
+    """
+    try:
+        value = plugin_config[name]
+    except Exception:
+        return fallback
+    return fallback if value is None else value

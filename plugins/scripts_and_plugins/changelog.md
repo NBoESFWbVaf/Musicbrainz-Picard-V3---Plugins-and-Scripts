@@ -8,6 +8,16 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.14.2] – 2026-10-24
+### Fixed
+- Die Nummerierungs-Schaltflächen blieben nach dem Öffnen des Fensters
+  ausgegraut, bis „Aktualisieren“ gedrückt wurde: Der Freigabe-Zustand
+  wurde nur in refresh() gesetzt, die automatische Auswahl-Verfolgung
+  (_check_selection_changed) führte ihn aber nicht mit. Der Zustand
+  wird jetzt bei jeder Auswahländerung aktualisiert — die Schaltflächen
+  schalten sich beim Markieren eines Albums sofort frei und beim
+  Wechsel weg vom Album sofort wieder ab.
+
 ## [0.14.1] – 2026-10-24
 ### Fixed
 - Deaktivieren des Plugins in der Pluginliste schlug mit „TypeError:

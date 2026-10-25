@@ -39,6 +39,11 @@ from .helpers import (
 # literalen Wert definiert (identisch zu Qt: 2**24 - 1).
 _WIDGET_SIZE_MAX = 16777215
 
+# Mindesthöhe der beiden Listen in sichtbaren Zeilen: Auch bei wenig
+# oder keinem Inhalt bleibt jede Liste mindestens so hoch, damit die
+# Boxen nicht auf eine einzelne Zeile zusammenschrumpfen.
+MIN_LIST_ROWS = 4
+
 
 class ListItemSpacingDelegate(QStyledItemDelegate):
     """Zeilenabstand in den Listen vergrößern."""
@@ -60,7 +65,8 @@ class CompactListWidget(QListWidget):
     (unabhängig vom Inhalt). Für die kompakte Fensterhöhe brauchen wir
     aber die tatsächliche Höhe aller Einträge: sizeHint() bildet sie aus
     den Zeilen-Höhen ab und wird nie größer als die eingestellte
-    Höchsthöhe. Darauf bauen die Größen-Schätzungen der Bereichs-Boxen
+    Höchsthöhe und nie kleiner als die eingestellte Mindesthöhe. Darauf
+    bauen die Größen-Schätzungen der Bereichs-Boxen
     und damit die Begrenzung des Listenbereichs auf.
     """
 
@@ -74,6 +80,8 @@ class CompactListWidget(QListWidget):
         height += 2 * self.frameWidth()
         if self.maximumHeight() < _WIDGET_SIZE_MAX:
             height = min(height, self.maximumHeight())
+        if self.minimumHeight() > 0:
+            height = max(height, self.minimumHeight())
         return QSize(hint.width(), height)
 
 
@@ -471,16 +479,21 @@ class ScriptsPluginsWindow(QDialog):
         return count
 
     def _adjust_list_heights(self):
-        """Beide Listen maximal so hoch wie ihr Inhalt — und die Boxen
-        (inkl. Titel und Fußzeilen) ebenfalls.
+        """Beide Listen höchstens so hoch wie ihr Inhalt, mindestens
+        MIN_LIST_ROWS Zeilen — und die Boxen (inkl. Titel und
+        Fußzeilen) ebenso.
 
         Da die Listen untereinander gestapelt sind, bekommt jede Liste
         ihre eigene Höchsthöhe nach ihrem Inhalt: Der letzte Eintrag
         begrenzt die jeweilige Box — unterhalb der Einträge bleibt kein
         leerer Raum, die Elemente verteilen sich also nicht beim
-        Vergrößern des Fensters. Jede Box erhält zusätzlich die
-        Höchsthöhe ihrer sizeHint (wie Genre- und Nummerierungs-Box),
-        und der Listenbereich die Summe beider Boxen, sodass der
+        Vergrößern des Fensters. Bei weniger als MIN_LIST_ROWS
+        Einträgen (oder leerer Liste) greift die Mindesthöhe, damit
+        die Boxen nicht auf eine einzelne Zeile zusammenschrumpfen.
+        Jede Box erhält zusätzlich die Höchsthöhe ihrer sizeHint
+        (wie Genre- und Nummerierungs-Box; CompactListWidget.sizeHint()
+        berücksichtigt die Mindesthöhe mit), und der Listenbereich die
+        Summe beider Boxen, sodass der
         vertikale Splitter ihm keinen Leerraum zuweisen kann;
         überschüssiger Platz bleibt als Leerraum über der
         Schaltflächenzeile. Läuft nach jedem
@@ -492,14 +505,18 @@ class ScriptsPluginsWindow(QDialog):
             (self.action_list, self.actions_box),
         ):
             count = list_widget.count()
+            row_height = list_widget.sizeHintForRow(0)
             if count == 0:
-                content_height = list_widget.sizeHintForRow(0)
+                content_height = row_height
             else:
                 content_height = sum(
                     list_widget.sizeHintForRow(i) for i in range(count)
                 )
+            frame = 2 * list_widget.frameWidth()
+            minimum_height = MIN_LIST_ROWS * row_height + frame
+            list_widget.setMinimumHeight(minimum_height)
             list_widget.setMaximumHeight(
-                content_height + 2 * list_widget.frameWidth()
+                max(content_height + frame, minimum_height)
             )
             box.setMaximumHeight(box.sizeHint().height())
         # Benötigte Höhe des Listenbereichs: Summe der beiden

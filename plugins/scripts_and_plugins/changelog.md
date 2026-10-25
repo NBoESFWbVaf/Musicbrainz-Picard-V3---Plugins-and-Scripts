@@ -13,7 +13,12 @@ jede Version datiert.
 - Neuer Bereich „Datum“ unterhalb der Nummerierung: Ein Eingabefeld
   nimmt ein Datum im ISO-Format jjjj-mm-tt auf (validiert über
   `QDate.fromString` plus Roundtrip — nur exakt formatierte, echte
-  Kalenderdaten geben die Schaltfläche „Datum setzen“ frei). Das Jahr
+  Kalenderdaten geben die Schaltfläche „Datum setzen“ frei). Beim
+  Öffnen steht das aktuelle Datum im Feld — `refresh()` setzt es
+  über `QDate.currentDate()` bei jeder Aktualisierung neu, solange
+  der Nutzer das Feld nicht selbst bearbeitet hat (`QLineEdit.isModified()`
+  ist nach programmatischem `setText` False, erst eine Nutzereingabe
+  setzt es True). Das Jahr
   (jjjj) wird in die Tags `date` und `originalyear` geschrieben, das
   vollständige Datum (jjjj-mm-tt) in `releasedate` und `originaldate`
   — fehlende Tags werden dabei angelegt. Die Anwendung läuft über

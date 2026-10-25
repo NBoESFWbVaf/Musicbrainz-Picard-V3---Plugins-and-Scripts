@@ -78,7 +78,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.list_row_spacing_spin.setRange(0, 30)
         self.list_row_spacing_spin.setSuffix(" Pixel")
         self.window_width_spin = QSpinBox(self)
-        self.window_width_spin.setRange(640, 3840)
+        self.window_width_spin.setRange(200, 3840)
         self.window_width_spin.setSuffix(" Pixel")
         self.window_width_spin.setToolTip(
             "Breite des Fensters „Scripts & Plugins“ beim Öffnen "

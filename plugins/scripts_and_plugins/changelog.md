@@ -8,6 +8,19 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.22.0] – 2026-10-25
+### Changed
+- Buttonbeschriftungen deutlich gekürzt — die ausführlichen
+  Beschreibungen stehen unverändert in den Tooltips: „Gewähltes
+  Script ausführen“ → „Starten“, „Alle aktiven Scripte ausführen“ →
+  „Alle“, „Aktion ausführen“ → „Starten“, „Alle Genre überschreiben“
+  → „Ersetzen“, „Dieses Genre anhängen“ → „Hinzufügen“, „Tracks neu
+  nummerieren“ → „Nummerieren“, „Tracks gemixt nummerieren“ →
+  „Mischen“, „Datum setzen“ → „Übernehmen“; „Aktualisieren“ bleibt.
+  Die beiden „Starten“-Schaltflächen (Script- und Aktions-Box)
+  haben dafür eigene Tooltips erhalten. Die Kurz-Labels machen die
+  Bereichs-Boxen und damit das Fenster deutlich schmaler.
+
 ## [0.21.0] – 2026-10-25
 ### Changed
 - Die Mindestbreite des Fensters liegt jetzt bei 200 Pixeln (bisher

@@ -1008,11 +1008,14 @@ class ScriptsPluginsWindow(QDialog):
 
         Alben: Pro Disc (Gruppierung nach discnumber der Track-Metadaten,
         Voreinstellung „1“) werden die Tracks mit gematchter Datei
-        nummeriert (1, 2, 3, …) — order_func bestimmt die Reihenfolge
+        nummeriert (01, 02, 03, …) — die Nummern werden mit führenden
+        Nullen so breit wie die größte Nummer der Disc geschrieben,
+        mindestens zweistellig (1–99 Einträge: zweistellig, 100–999:
+        dreistellig und so weiter); order_func bestimmt die Reihenfolge
         (None = Track-Reihenfolge des Albums, _shuffled_no_repeat =
         zufällig mit Interpreten-Abstand); Tracks ohne Datei bleiben
         komplett unberührt. totaltracks erhält die Anzahl der Tracks
-        mit Datei der jeweiligen Disc. Die Änderungen laufen über
+        mit Datei der jeweiligen Disc (ungefüllt). Die Änderungen laufen über
         track.metadata und werden über Track.update_file_metadata()
         (siehe _sync_track_files) in die gematchten Dateien übertragen
         — sichtbar im Datei-Detail (Spalte „Neu“) und mit „Speichern“
@@ -1020,7 +1023,7 @@ class ScriptsPluginsWindow(QDialog):
 
         Cluster: Dasselbe pro Disc (Gruppierung nach discnumber der
         Datei-Metadaten), nummeriert werden alle Dateien des Clusters
-        in seiner Datei-Reihenfolge — geschrieben direkt in
+        in seiner Datei-Reihenfolge mit derselben Nummern-Breite — geschrieben direkt in
         file.metadata (der von Picard vorgesehene Weg für per-Datei-
         Änderungen, siehe _apply_to_metadata), danach UI-Update über
         Cluster.update() (`files` und `update` gegen Picard 3.0.2
@@ -1069,8 +1072,13 @@ class ScriptsPluginsWindow(QDialog):
                             order_func(available) if order_func else available
                         )
                         total = len(ordered)
+                        # Nummern-Breite je Disc: so breit wie die
+                        # größte Nummer, mindestens zweistellig
+                        # (1–99 Einträge: 01…99, ab 100 dreistellig).
+                        width = max(2, len(str(total)))
                         for position, track in enumerate(ordered, start=1):
-                            track.metadata["tracknumber"] = str(position)
+                            padded = str(position).zfill(width)
+                            track.metadata["tracknumber"] = padded
                             track.metadata["totaltracks"] = str(total)
                             self._sync_track_files(track)
                         skipped += len(disc_groups[disc]) - total
@@ -1097,8 +1105,11 @@ class ScriptsPluginsWindow(QDialog):
                             else files_in_disc
                         )
                         total = len(ordered)
+                        # Dieselbe Nummern-Breite wie beim Album-Pfad.
+                        width = max(2, len(str(total)))
                         for position, file in enumerate(ordered, start=1):
-                            file.metadata["tracknumber"] = str(position)
+                            padded = str(position).zfill(width)
+                            file.metadata["tracknumber"] = padded
                             file.metadata["totaltracks"] = str(total)
                             self._update_ui_item(file)
                         changed += total

@@ -1,4 +1,4 @@
-"""Fenster „Scripts & Plugins“: Listen und Ausführungslogik."""
+"""Fenster „Picard Extender“: Listen und Ausführungslogik."""
 
 import random
 
@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStyledItemDelegate,
+    QTextBrowser,
     QVBoxLayout,
 )
 
@@ -86,7 +87,96 @@ class CompactListWidget(QListWidget):
         return QSize(hint.width(), height)
 
 
-class ScriptsPluginsWindow(QDialog):
+# Hilfstexte für das „?“-Fenster (HTML, gerendert im QTextBrowser):
+# kurze Stichpunkte zu jedem Bereich des Hauptfensters. Anpassungen
+# brauchen nur diese eine Stelle.
+_HELP_TEXT = """
+<p><b>Tagging-Scripte</b></p>
+<ul>
+<li>„Starten“ führt das gewählte Script auf der Auswahl aus,
+„Alle“ führt alle aktivierten Scripte der Reihe nach aus;
+Doppelklick auf einen Eintrag genügt.</li>
+<li>Deaktivierte Scripte sind mit „(deaktiviert)“ gekennzeichnet
+und lassen sich trotzdem ausführen.</li>
+</ul>
+<p><b>Plugin-Aktionen</b></p>
+<ul>
+<li>Führt Aktionen anderer Plugins aus — dieselben Einträge wie
+im Kontextmenü der Auswahl; Doppelklick genügt.</li>
+</ul>
+<p><b>Genre hinzufügen</b></p>
+<ul>
+<li>„Ersetzen“ überschreibt vorhandene Genre-Werte, „Hinzufügen“
+hängt die gewählte Genre ohne Dubletten an.</li>
+<li>Die Einträge stammen aus der „Genre-Liste“ in den Optionen
+(eine Genre pro Zeile).</li>
+</ul>
+<p><b>Nummerierung</b></p>
+<ul>
+<li>„Nummerieren“ nummeriert pro Disc lückenlos neu — Album: nur
+Tracks mit Datei, Cluster: alle Dateien; „Mischen“ in
+zufälliger Reihenfolge, ohne denselben Interpret zweimal
+hintereinander (soweit vermeidbar).</li>
+<li>Nummern mindestens zweistellig mit führenden Nullen (ab 100
+Einträgen pro Disc dreistellig und so weiter); „totaltracks“ =
+Anzahl der nummerierten Einträge je Disc.</li>
+</ul>
+<p><b>Datum</b></p>
+<ul>
+<li>Eingabe im ISO-Format jjjj-mm-tt; das Feld ist mit dem
+aktuellen Datum vorbelegt.</li>
+<li>„Übernehmen“ schreibt das Jahr in „date“ und „originalyear“,
+das vollständige Datum in „releasedate“ und „originaldate“;
+fehlende Tags werden angelegt.</li>
+<li>Gilt für Album-, Track-, Datei- und Cluster-Auswahl.</li>
+</ul>
+<p><b>Statuszeile</b></p>
+<ul>
+<li>Meldet mit „✓“/„✗“ das Ergebnis der letzten Ausführung und
+folgt live der Auswahl im Hauptfenster.</li>
+</ul>
+<p><b>Optionen &amp; Speichern</b></p>
+<ul>
+<li>Einstellungen unter Optionen → Optionen… → Plugins →
+Picard Extender; Änderungen greifen live, ohne Neustart.</li>
+<li>Geschrieben wird erst mit „Speichern“ in Picard.</li>
+</ul>
+"""
+
+
+class ExtenderHelpDialog(QDialog):
+    """Hilfstexte-Fenster: kurze Beschreibungen zu allen Bereichen."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Hilfstexte — Picard Extender")
+        self.setMinimumSize(520, 360)
+        # Gleiche Fenster-Flags wie das Hauptfenster: reguläres
+        # Fenster inklusive Minimieren/Maximieren (nicht modal —
+        # das Hauptfenster bleibt neben ihm bedienbar).
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        # QTextBrowser ist read-only und rendert das HTML; bei
+        # kleinem Fenster scrollt der Inhalt.
+        browser = QTextBrowser(self)
+        browser.setHtml(_HELP_TEXT)
+        close_button = QPushButton("Schließen", self)
+        close_button.clicked.connect(self.accept)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(close_button)
+        layout = QVBoxLayout(self)
+        layout.addWidget(browser, 1)
+        layout.addLayout(footer)
+
+
+class ExtenderWindow(QDialog):
     """Fenster mit Script- und Action-Liste.
 
     Bekommt das Picard-Hauptfenster als Parent übergeben, damit es
@@ -96,7 +186,7 @@ class ScriptsPluginsWindow(QDialog):
     def __init__(self, api, parent=None):
         super().__init__(parent)
         self.api = api
-        self.setWindowTitle("Scripts & Plugins")
+        self.setWindowTitle("Picard Extender")
         # Mindestbreite 200 Pixel (Untergrenze der Option
         # „window_width“), Mindesthöhe 420.
         self.setMinimumSize(200, 420)
@@ -163,6 +253,16 @@ class ScriptsPluginsWindow(QDialog):
             "in „releasedate“ und „originaldate“; fehlende Tags werden "
             "dabei angelegt"
         )
+        # „?“-Schaltfläche für die Hilfstexte (quadratisch, unten
+        # rechts in der Schaltflächenzeile): öffnet ein Fenster mit
+        # kurzen Beschreibungen zu allen Bereichen.
+        self.help_button = QPushButton("?", self)
+        self.help_button.setToolTip(
+            "Öffnet die Hilfstexte mit kurzen Beschreibungen zu "
+            "allen Bereichen dieses Fensters"
+        )
+        help_height = self.help_button.sizeHint().height()
+        self.help_button.setFixedSize(help_height, help_height)
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
         self.overwrite_genres_button.setEnabled(False)
@@ -208,10 +308,12 @@ class ScriptsPluginsWindow(QDialog):
         self._lists_splitter.setStretchFactor(0, 1)
         self._lists_splitter.setStretchFactor(1, 1)
 
-        # Untere Schaltflächenzeile: nur der Aktualisieren-Button
+        # Untere Schaltflächenzeile: Aktualisieren-Button links,
+        # „?“ (Hilfstexte) in der rechten unteren Ecke.
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.refresh_button)
         button_layout.addStretch(1)
+        button_layout.addWidget(self.help_button)
 
         self._status = QLabel("Öffne das Fenster oder klicke auf „Aktualisieren“.", self)
         self._status.setWordWrap(True)
@@ -307,6 +409,7 @@ class ScriptsPluginsWindow(QDialog):
         self.renumber_button.clicked.connect(self._renumber_tracks)
         self.mix_button.clicked.connect(self._renumber_tracks_mixed)
         self.apply_date_button.clicked.connect(self._apply_selected_date)
+        self.help_button.clicked.connect(lambda *_: self._show_help())
         self.date_edit.textChanged.connect(
             lambda *_: self._update_date_button()
         )
@@ -325,6 +428,9 @@ class ScriptsPluginsWindow(QDialog):
                 self.action_list.currentItem() is not None
             )
         )
+
+        # --- Hilfstexte-Fenster (Singleton, lazy angelegt) ---
+        self._help_dialog = None
 
         # --- Automatische Auswahl-Verfolgung ---
         self._last_selection_signature = None
@@ -1286,6 +1392,18 @@ class ScriptsPluginsWindow(QDialog):
             "Aktion „%s“ auf %d Objekt(en) ausgeführt."
             % (_action_title(action_class), len(objs)),
         )
+
+    # ------------------------------------------------------------------
+    # Hilfstexte
+
+    def _show_help(self):
+        """Hilfstexte-Fenster anzeigen (Singleton: wiederverwendet die
+        Instanz, wie das Hauptfenster selbst es tut)."""
+        if self._help_dialog is None:
+            self._help_dialog = ExtenderHelpDialog(self)
+        self._help_dialog.show()
+        self._help_dialog.raise_()
+        self._help_dialog.activateWindow()
 
     # ------------------------------------------------------------------
     # Qt-Ereignisse

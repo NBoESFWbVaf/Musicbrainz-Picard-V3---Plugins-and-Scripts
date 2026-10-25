@@ -27,7 +27,7 @@ from PyQt6 import (
 from picard.util.thread import to_main
 
 # Name für Log-Meldungen dieses Moduls.
-_PLUGIN_NAME = "Scripts & Plugins"
+_PLUGIN_NAME = "Picard Extender"
 
 # Zentraler Modul-Zustand, damit disable_cover_info() wieder alles
 # aufräumen kann.

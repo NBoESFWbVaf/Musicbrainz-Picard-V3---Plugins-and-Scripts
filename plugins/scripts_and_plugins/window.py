@@ -1,8 +1,8 @@
-"""Fenster „Scripts & Plugins“: Listen, Protokoll und Ausführungslogik."""
+"""Fenster „Scripts & Plugins“: Listen und Ausführungslogik."""
 
 import random
 
-from PyQt6.QtCore import QDateTime, QSize, Qt, QTimer
+from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStyledItemDelegate,
-    QTextEdit,
     QVBoxLayout,
 )
 
@@ -106,8 +105,6 @@ class ScriptsPluginsWindow(QDialog):
         # --- Schaltflächen (früh erstellt, da sie innerhalb der
         #     Bereichs-Boxen platziert werden) ---
         self.refresh_button = QPushButton("Aktualisieren", self)
-        self.clear_log_button = QPushButton("Leeren", self)
-        self.clear_log_button.setToolTip("Protokoll leeren")
         self.run_script_button = QPushButton("Gewähltes Script ausführen", self)
         self.run_all_button = QPushButton("Alle aktiven Scripte ausführen", self)
         self.run_all_button.setToolTip(
@@ -183,17 +180,16 @@ class ScriptsPluginsWindow(QDialog):
         self._lists_splitter.setStretchFactor(0, 1)
         self._lists_splitter.setStretchFactor(1, 1)
 
-        # Untere Schaltflächenzeile: nur noch Fenster-übergreifendes
+        # Untere Schaltflächenzeile: nur der Aktualisieren-Button
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.refresh_button)
-        button_layout.addWidget(self.clear_log_button)
         button_layout.addStretch(1)
 
         self._status = QLabel("Öffne das Fenster oder klicke auf „Aktualisieren“.", self)
         self._status.setWordWrap(True)
 
         # --- Genre-Auswahl ---
-        # Dropdown zwischen den Listen und dem Protokoll: Inhalt ist die
+        # Dropdown unterhalb der Listen: Inhalt ist die
         # Genre-Liste aus den Optionen (eine Zeile pro Genre). Gewählt
         # wird erst mit einer der beiden Schaltflächen angewendet —
         # überschreiben oder anhängen. Ohne Auswahl zeigt das Feld nur
@@ -240,44 +236,20 @@ class ScriptsPluginsWindow(QDialog):
         self.genre_numbering_splitter.setStretchFactor(0, 1)
         self.genre_numbering_splitter.setStretchFactor(1, 1)
 
-        # --- Protokollfenster ---
-        self.log_view = QTextEdit(self)
-        self.log_view.setReadOnly(True)
-        self.log_view.setMinimumHeight(60)
-        self.log_view.setPlaceholderText(
-            "Start, Erfolg und Fehlschlag ausgeführter Scripte und Aktionen …"
-        )
-        self.log_box = QGroupBox("Protokoll", self)
-        log_layout = QVBoxLayout(self.log_box)
-        log_layout.addWidget(self.log_view)
-
-        # Vertikaler Splitter zwischen Listen, Genre-Auswahl/Nummerierung
-        # und Protokoll: Die Höhe des Protokollfensters lässt sich mit der
-        # Maus frei verstellen, ohne dass einer der Bereiche ganz
-        # verschwindet. Überschüssiger Platz beim Vergrößern des
-        # Fensters geht ausschließlich ans Protokoll (Stretch 1);
-        # Listenbereich und Genre/Nummerierung (Stretch 0) werden über
-        # ihre Höchsthöhen ohnehin kompakt gehalten.
-        main_splitter = QSplitter(Qt.Orientation.Vertical, self)
-        main_splitter.addWidget(self._lists_splitter)
-        main_splitter.addWidget(self.genre_numbering_splitter)
-        main_splitter.addWidget(self.log_box)
-        main_splitter.setStretchFactor(0, 0)
-        main_splitter.setStretchFactor(1, 0)
-        main_splitter.setStretchFactor(2, 1)
-        main_splitter.setCollapsible(0, False)
-        main_splitter.setCollapsible(1, False)
-        main_splitter.setCollapsible(2, False)
-        main_splitter.setSizes([520, 210, 140])
-
+        # Aufbau untereinander: Listen, Genre-Auswahl/Nummerierung,
+        # dann Leerraum, Schaltflächenzeile und Statuszeile. Alle
+        # Bereiche bleiben über ihre Höchsthöhen kompakt; überschüssiger
+        # Platz beim Vergrößern des Fensters bleibt als Leerraum über
+        # der Schaltflächenzeile.
         layout = QVBoxLayout(self)
-        layout.addWidget(main_splitter, 1)
+        layout.addWidget(self._lists_splitter)
+        layout.addWidget(self.genre_numbering_splitter)
+        layout.addStretch(1)
         layout.addLayout(button_layout)
         layout.addWidget(self._status)
 
         # --- Signale verbinden ---
         self.refresh_button.clicked.connect(self.refresh)
-        self.clear_log_button.clicked.connect(self.log_view.clear)
         self.run_all_button.clicked.connect(self._run_all_scripts)
         self.run_script_button.clicked.connect(self._run_selected_script)
         self.run_action_button.clicked.connect(self._run_selected_action)
@@ -333,30 +305,16 @@ class ScriptsPluginsWindow(QDialog):
     def _set_status(self, text):
         self._status.setText(text)
 
-    def _log_message(self, text):
-        """Startmeldung im Protokoll festhalten.
-
-        Standardfarbe, kein Symbol — die Bewertung der Ausführung
-        erfolgt erst mit der Abschlussmeldung über _log_result().
-        """
-        timestamp = QDateTime.currentDateTime().toString("HH:mm:ss")
-        self.log_view.append("[%s] %s" % (timestamp, text))
-
-    def _log_result(self, success, text):
-        """Abschlussmeldung im Protokoll festhalten."""
+    def _set_result(self, success, text):
+        """Ergebnis der letzten Ausführung in der Statuszeile festhalten."""
         symbol = "✓" if success else "✗"
-        color = "green" if success else "red"
-        timestamp = QDateTime.currentDateTime().toString("HH:mm:ss")
-        self.log_view.append(
-            "[%s] <span style=\"color:%s;\">%s %s</span>"
-            % (timestamp, color, symbol, text)
-        )
+        self._status.setText("%s %s" % (symbol, text))
 
     def _apply_display_settings(self):
         """Anzeige-Einstellungen aus den Plugin-Optionen anwenden.
 
         Steuert die Sichtbarkeit der Bereichs-Boxen (Scripte, Aktionen,
-        Protokoll) und den Zeilenabstand. Läuft bei jeder Aktualisierung
+        Genre, Nummerierung) und den Zeilenabstand. Läuft bei jeder Aktualisierung
         (Öffnen, Toolbar-Klick, „Aktualisieren“) sowie live beim Ändern
         der Optionen über das setting_changed-Signal der
         Plugin-Konfiguration.
@@ -374,9 +332,6 @@ class ScriptsPluginsWindow(QDialog):
         self.actions_box.setVisible(
             _config_value(self.api.plugin_config, "show_actions_list", True)
         )
-        self.log_box.setVisible(
-            _config_value(self.api.plugin_config, "show_log", True)
-        )
         self.genre_box.setVisible(
             _config_value(self.api.plugin_config, "show_genre", True)
         )
@@ -389,7 +344,6 @@ class ScriptsPluginsWindow(QDialog):
         if name in (
             "show_scripts_list",
             "show_actions_list",
-            "show_log",
             "show_genre",
             "show_numbering",
             "genre_list",
@@ -528,7 +482,8 @@ class ScriptsPluginsWindow(QDialog):
         Höchsthöhe ihrer sizeHint (wie Genre- und Nummerierungs-Box),
         und der Listenbereich die Summe beider Boxen, sodass der
         vertikale Splitter ihm keinen Leerraum zuweisen kann;
-        überschüssiger Platz fällt dem Protokoll zu. Läuft nach jedem
+        überschüssiger Platz bleibt als Leerraum über der
+        Schaltflächenzeile. Läuft nach jedem
         Listen-Neuaufbau, also auch nach Options-Änderungen, da
         sizeHintForRow() den Zeilenabstand des Delegates berücksichtigt.
         """
@@ -741,15 +696,11 @@ class ScriptsPluginsWindow(QDialog):
             return
         objs = self._selected_objects()
         if not objs:
-            self._log_result(
+            self._set_result(
                 False,
                 "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
             )
             return
-        self._log_message(
-            "Genre „%s“ %s …"
-            % (genre, "anhängen" if append else "überschreiben")
-        )
         try:
             changed, failed = self._apply_to_metadata(
                 objs,
@@ -761,14 +712,14 @@ class ScriptsPluginsWindow(QDialog):
             self.api.logger.exception(
                 "Unerwarteter Fehler beim Setzen des Genres „%s“", genre
             )
-            self._log_result(
+            self._set_result(
                 False,
                 "Genre „%s“ — unerwarteter Fehler, Details im Picard-Log."
                 % genre,
             )
             return
         if failed:
-            self._log_result(
+            self._set_result(
                 False,
                 "Genre „%s“ mit Fehlern %s: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
                 % (
@@ -779,7 +730,7 @@ class ScriptsPluginsWindow(QDialog):
                 ),
             )
         else:
-            self._log_result(
+            self._set_result(
                 True,
                 "Genre „%s“ %s: %d Metadaten aktualisiert."
                 % (genre, "angehängt" if append else "überschrieben", changed),
@@ -863,16 +814,12 @@ class ScriptsPluginsWindow(QDialog):
         objs = self._selected_objects()
         albums = [obj for obj in objs if isinstance(obj, Album)]
         if not albums:
-            self._log_result(
+            self._set_result(
                 False,
                 "Nummerierung braucht eine Album-Auswahl im "
                 "Hauptfenster — bitte zuerst ein Album markieren.",
             )
             return
-        self._log_message(
-            "Nummeriere %d Album(x) %s (nur Tracks mit vorhandener "
-            "Datei) …" % (len(albums), label)
-        )
         changed = 0
         skipped = 0
         try:
@@ -919,21 +866,21 @@ class ScriptsPluginsWindow(QDialog):
             self.api.logger.exception(
                 "Unerwarteter Fehler bei der Nummerierung"
             )
-            self._log_result(
+            self._set_result(
                 False,
                 "Nummerierung — unerwarteter Fehler, Details im "
                 "Picard-Log.",
             )
             return
         if changed:
-            self._log_result(
+            self._set_result(
                 True,
                 "Nummerierung: %d Track(s) mit Datei %s nummeriert, "
                 "%d Track(s) ohne Datei übersprungen."
                 % (changed, label, skipped),
             )
         else:
-            self._log_result(
+            self._set_result(
                 False,
                 "Nummerierung: keine Tracks mit vorhandener Datei "
                 "gefunden.",
@@ -950,32 +897,31 @@ class ScriptsPluginsWindow(QDialog):
         script = item.data(Qt.ItemDataRole.UserRole)
         objs = self._selected_objects()
         if not objs:
-            self._log_result(
+            self._set_result(
                 False,
                 "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
             )
             return
-        self._log_message("Script „%s“ gestartet …" % script.name)
         try:
             changed, failed = self._apply_script(script, objs)
         except Exception:
             self.api.logger.exception(
                 "Unerwarteter Fehler beim Ausführen des Scriptes %s", script.name
             )
-            self._log_result(
+            self._set_result(
                 False,
                 "Script „%s“ — unerwarteter Fehler, Details im Picard-Log."
                 % script.name,
             )
             return
         if failed:
-            self._log_result(
+            self._set_result(
                 False,
                 "Script „%s“ mit Fehlern abgeschlossen: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
                 % (script.name, changed, failed),
             )
         else:
-            self._log_result(
+            self._set_result(
                 True,
                 "Script „%s“ ausgeführt: %d Metadaten in %d Objekt(en) aktualisiert."
                 % (script.name, changed, len(objs)),
@@ -990,7 +936,7 @@ class ScriptsPluginsWindow(QDialog):
         """
         objs = self._selected_objects()
         if not objs:
-            self._log_result(
+            self._set_result(
                 False,
                 "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
             )
@@ -1001,23 +947,18 @@ class ScriptsPluginsWindow(QDialog):
             if data is not None and getattr(data, "enabled", False):
                 scripts.append(data)
         if not scripts:
-            self._log_result(False, "Keine aktiven Tagging-Scripte gefunden.")
+            self._set_result(False, "Keine aktiven Tagging-Scripte gefunden.")
             return
-        self._log_message(
-            "Starte %d aktive(s) Script(e) auf %d Objekt(en) …"
-            % (len(scripts), len(objs))
-        )
         total_changed = 0
         total_failed = 0
         for script in scripts:
-            self._log_message("Script „%s“ gestartet …" % script.name)
             try:
                 changed, failed = self._apply_script(script, objs)
             except Exception:
                 self.api.logger.exception(
                     "Unerwarteter Fehler beim Ausführen des Scriptes %s", script.name
                 )
-                self._log_result(
+                self._set_result(
                     False,
                     "Script „%s“ — unerwarteter Fehler, Details im Picard-Log."
                     % script.name,
@@ -1027,25 +968,25 @@ class ScriptsPluginsWindow(QDialog):
             total_changed += changed
             total_failed += failed
             if failed:
-                self._log_result(
+                self._set_result(
                     False,
                     "Script „%s“ mit Fehlern abgeschlossen: %d Metadaten geändert, %d Fehler — Details im Picard-Log."
                     % (script.name, changed, failed),
                 )
             else:
-                self._log_result(
+                self._set_result(
                     True,
                     "Script „%s“ ausgeführt: %d Metadaten in %d Objekt(en) aktualisiert."
                     % (script.name, changed, len(objs)),
                 )
         if total_failed:
-            self._log_result(
+            self._set_result(
                 False,
                 "Alle Scripte abgeschlossen: %d Metadaten geändert, %d Fehler insgesamt — Details im Picard-Log."
                 % (total_changed, total_failed),
             )
         else:
-            self._log_result(
+            self._set_result(
                 True,
                 "Alle Scripte abgeschlossen: %d Metadaten in %d Objekt(en) aktualisiert."
                 % (total_changed, len(objs)),
@@ -1068,14 +1009,11 @@ class ScriptsPluginsWindow(QDialog):
         action_class, point = data
         objs = [obj for obj in self._selected_objects() if point in _points_for_object(obj)]
         if not objs:
-            self._log_result(
+            self._set_result(
                 False,
                 "Die aktuelle Auswahl enthält keine Objekte für diese Aktion.",
             )
             return
-        self._log_message(
-            "Aktion „%s“ gestartet …" % _action_title(action_class)
-        )
         try:
             # Gleicher Instanziierungsweg wie im Kontextmenü von Picard.
             instance = action_class()
@@ -1085,13 +1023,13 @@ class ScriptsPluginsWindow(QDialog):
                 "Fehler beim Ausführen der Plugin-Aktion %s",
                 _action_title(action_class),
             )
-            self._log_result(
+            self._set_result(
                 False,
                 "Aktion „%s“ — Fehler beim Ausführen, Details im Picard-Log."
                 % _action_title(action_class),
             )
             return
-        self._log_result(
+        self._set_result(
             True,
             "Aktion „%s“ auf %d Objekt(en) ausgeführt."
             % (_action_title(action_class), len(objs)),

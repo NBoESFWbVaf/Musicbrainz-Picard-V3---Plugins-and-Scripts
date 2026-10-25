@@ -8,6 +8,15 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.17.0] – 2026-10-25
+### Changed
+- Beide Listen („Tagging-Scripte“, „Plugin-Aktionen“) haben jetzt
+  eine Mindesthöhe von vier Zeilen (Konstante `MIN_LIST_ROWS` in
+  window.py): Bei weniger Einträgen oder leerer Liste schrumpfen die
+  Boxen nicht mehr auf eine einzelne Zeile zusammen.
+  `CompactListWidget.sizeHint()` berücksichtigt die Mindesthöhe mit,
+  sodass die Box- und Splitter-Begrenzungen konsistent bleiben.
+
 ## [0.16.0] – 2026-10-25
 ### Removed
 - Protokollfenster komplett entfernt: Bereich mit Textfeld,

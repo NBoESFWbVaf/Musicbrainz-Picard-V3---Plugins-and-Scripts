@@ -8,6 +8,21 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.18.0] – 2026-10-25
+### Added
+- Nummerierung unterstützt jetzt auch Cluster-Auswahl im
+  Clusterfenster: Die beiden Nummerierungs-Schaltflächen schalten
+  sich bei einem gewählten Cluster frei (bisher nur bei Album-
+  Auswahl) und nummerieren alle Dateien des Clusters pro Disc
+  (Gruppierung nach `discnumber` der Datei-Metadaten) in Cluster-
+  Datei-Reihenfolge — lückenlos oder gemischt mit Interpreten-
+  Abstand (`_shuffled_no_repeat()` läuft unverändert, da Dateien
+  dieselbe Metadaten-Schnittstelle haben). Die Änderungen werden
+  direkt in `file.metadata` geschrieben (der von Picard vorgesehene
+  Weg für per-Datei-Änderungen); danach UI-Update über
+  `Cluster.update()` — `cluster.files` und `update()` gegen
+  Picard 3.0.2 verifiziert.
+
 ## [0.17.0] – 2026-10-25
 ### Changed
 - Beide Listen („Tagging-Scripte“, „Plugin-Aktionen“) haben jetzt

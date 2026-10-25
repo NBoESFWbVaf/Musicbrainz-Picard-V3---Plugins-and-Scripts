@@ -2,13 +2,14 @@
 
 import random
 
-from PyQt6.QtCore import QSize, Qt, QTimer
+from PyQt6.QtCore import QDate, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -145,12 +146,20 @@ class ScriptsPluginsWindow(QDialog):
             "(soweit vermeidbar); bei Alben nur Tracks mit vorhandener "
             "Datei, totaltracks = Anzahl der nummerierten Einträge je Disc"
         )
+        self.apply_date_button = QPushButton("Datum setzen", self)
+        self.apply_date_button.setToolTip(
+            "Setzt das Datum als Tags auf die Auswahl: Jahr (jjjj) in "
+            "„date“ und „originalyear“, vollständiges Datum (jjjj-mm-tt) "
+            "in „releasedate“ und „originaldate“; fehlende Tags werden "
+            "dabei angelegt"
+        )
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
         self.overwrite_genres_button.setEnabled(False)
         self.append_genre_button.setEnabled(False)
         self.renumber_button.setEnabled(False)
         self.mix_button.setEnabled(False)
+        self.apply_date_button.setEnabled(False)
 
         # --- Script-Liste ---
         self.script_list = CompactListWidget(self)
@@ -236,14 +245,35 @@ class ScriptsPluginsWindow(QDialog):
             self.numbering_box.sizeHint().height()
         )
 
-        # Genre-Auswahl und Nummerierung untereinander
-        self.genre_numbering_splitter = QSplitter(
+        # --- Datum ---
+        # Eigener Bereich unter der Nummerierung: Datum im ISO-Format
+        # (jjjj-mm-tt) auf die Auswahl anwenden — Jahr und Datum
+        # landen in vier Tags (Details siehe _apply_selected_date).
+        self.date_edit = QLineEdit(self)
+        self.date_edit.setPlaceholderText("jjjj-mm-tt")
+        self.date_edit.setToolTip(
+            "Datum im ISO-Format jjjj-mm-tt, z. B. 2026-10-25"
+        )
+        self.date_box = QGroupBox("Datum", self)
+        date_layout = QVBoxLayout(self.date_box)
+        date_footer = QHBoxLayout()
+        date_footer.addWidget(self.date_edit, 1)
+        date_footer.addWidget(self.apply_date_button)
+        date_layout.addLayout(date_footer)
+        # Höhe fixieren (Eingabefeld plus Titel): Der Bereich soll
+        # beim Vergrößern des Fensters nicht wachsen.
+        self.date_box.setMaximumHeight(self.date_box.sizeHint().height())
+
+        # Genre-Auswahl, Nummerierung und Datum untereinander
+        self.lower_boxes_splitter = QSplitter(
             Qt.Orientation.Vertical, self
         )
-        self.genre_numbering_splitter.addWidget(self.genre_box)
-        self.genre_numbering_splitter.addWidget(self.numbering_box)
-        self.genre_numbering_splitter.setStretchFactor(0, 1)
-        self.genre_numbering_splitter.setStretchFactor(1, 1)
+        self.lower_boxes_splitter.addWidget(self.genre_box)
+        self.lower_boxes_splitter.addWidget(self.numbering_box)
+        self.lower_boxes_splitter.addWidget(self.date_box)
+        self.lower_boxes_splitter.setStretchFactor(0, 1)
+        self.lower_boxes_splitter.setStretchFactor(1, 1)
+        self.lower_boxes_splitter.setStretchFactor(2, 1)
 
         # Aufbau untereinander: Listen, Genre-Auswahl/Nummerierung,
         # dann Leerraum, Schaltflächenzeile und Statuszeile. Alle
@@ -252,7 +282,7 @@ class ScriptsPluginsWindow(QDialog):
         # der Schaltflächenzeile.
         layout = QVBoxLayout(self)
         layout.addWidget(self._lists_splitter)
-        layout.addWidget(self.genre_numbering_splitter)
+        layout.addWidget(self.lower_boxes_splitter)
         layout.addStretch(1)
         layout.addLayout(button_layout)
         layout.addWidget(self._status)
@@ -266,6 +296,10 @@ class ScriptsPluginsWindow(QDialog):
         self.append_genre_button.clicked.connect(self._append_genre)
         self.renumber_button.clicked.connect(self._renumber_tracks)
         self.mix_button.clicked.connect(self._renumber_tracks_mixed)
+        self.apply_date_button.clicked.connect(self._apply_selected_date)
+        self.date_edit.textChanged.connect(
+            lambda *_: self._update_date_button()
+        )
         self.genre_combo.currentIndexChanged.connect(
             lambda *_: self._update_genre_buttons()
         )
@@ -323,7 +357,7 @@ class ScriptsPluginsWindow(QDialog):
         """Anzeige-Einstellungen aus den Plugin-Optionen anwenden.
 
         Steuert die Sichtbarkeit der Bereichs-Boxen (Scripte, Aktionen,
-        Genre, Nummerierung) und den Zeilenabstand. Läuft bei jeder Aktualisierung
+        Genre, Nummerierung, Datum) und den Zeilenabstand. Läuft bei jeder Aktualisierung
         (Öffnen, Toolbar-Klick, „Aktualisieren“) sowie live beim Ändern
         der Optionen über das setting_changed-Signal der
         Plugin-Konfiguration.
@@ -347,6 +381,9 @@ class ScriptsPluginsWindow(QDialog):
         self.numbering_box.setVisible(
             _config_value(self.api.plugin_config, "show_numbering", True)
         )
+        self.date_box.setVisible(
+            _config_value(self.api.plugin_config, "show_date", True)
+        )
 
     def _on_plugin_setting_changed(self, name, old_value, new_value):
         """Live-Reaktion auf Optionsänderungen (z. B. im Optionsdialog)."""
@@ -355,6 +392,7 @@ class ScriptsPluginsWindow(QDialog):
             "show_actions_list",
             "show_genre",
             "show_numbering",
+            "show_date",
             "genre_list",
             "list_row_spacing",
             "show_disabled_scripts",
@@ -763,6 +801,94 @@ class ScriptsPluginsWindow(QDialog):
         """„Dieses Genre anhängen“: Die gewählte Genre wird an vorhandene
         Genre-Werte angehängt (ohne Dubletten)."""
         self._apply_genre(self.genre_combo.currentText(), append=True)
+
+    # ------------------------------------------------------------------
+    # Ausführen: Datum
+
+    def _parse_date(self):
+        """Datum aus dem Eingabefeld lesen — gültig nur als exaktes
+        ISO-Format jjjj-mm-tt.
+
+        Der Roundtrip über QDate.toString erzwingt das exakte Format
+        (keine Trennzeichen-Varianten, keine Reste) und schließt
+        ungültige Kalenderdaten (z. B. 2026-02-30) aus: QDate lässt
+        beim Parsen Überläufe zu, isValid() plus Roundtrip fängt das
+        ab.
+        """
+        text = self.date_edit.text().strip()
+        if not text:
+            return None
+        date = QDate.fromString(text, "yyyy-MM-dd")
+        if not date.isValid():
+            return None
+        if date.toString("yyyy-MM-dd") != text:
+            return None
+        return date
+
+    def _update_date_button(self):
+        """„Datum setzen“ nur bei gültigem Datum freigeben."""
+        self.apply_date_button.setEnabled(self._parse_date() is not None)
+
+    def _apply_selected_date(self, _checked=False):
+        """„Datum setzen“: Das Datum aus dem Eingabefeld auf die
+        Auswahl anwenden.
+
+        Das Jahr (jjjj) landet in „date“ und „originalyear“, das
+        vollständige Datum (jjjj-mm-tt) in „releasedate“ und
+        „originaldate“ — die Tag-Zuordnung bewusst so, wie mit dem
+        Nutzer vereinbart. Fehlende Tags werden durch die Zuweisung
+        angelegt. Die Anwendung läuft über _apply_to_metadata und
+        deckt damit Album (alle Tracks plus Album-Metadaten), Track,
+        Datei und Cluster (alle Dateien) ab.
+        """
+        date = self._parse_date()
+        if date is None:
+            self._set_result(
+                False,
+                "Bitte ein gültiges Datum im Format jjjj-mm-tt angeben.",
+            )
+            return
+        objs = self._selected_objects()
+        if not objs:
+            self._set_result(
+                False,
+                "Keine Auswahl im Hauptfenster — bitte zuerst Objekte markieren.",
+            )
+            return
+        year = date.toString("yyyy")
+        full = date.toString("yyyy-MM-dd")
+
+        def set_date(_parser, metadata):
+            metadata["date"] = year
+            metadata["originalyear"] = year
+            metadata["releasedate"] = full
+            metadata["originaldate"] = full
+            metadata.strip_whitespace()
+            return True
+
+        try:
+            changed, failed = self._apply_to_metadata(objs, set_date)
+        except Exception:
+            self.api.logger.exception(
+                "Unerwarteter Fehler beim Setzen des Datums „%s“", full
+            )
+            self._set_result(
+                False,
+                "Datum — unerwarteter Fehler, Details im Picard-Log.",
+            )
+            return
+        if failed:
+            self._set_result(
+                False,
+                "Datum „%s“ mit Fehlern gesetzt: %d Metadaten aktualisiert, %d Fehler — Details im Picard-Log."
+                % (full, changed, failed),
+            )
+        else:
+            self._set_result(
+                True,
+                "Datum „%s“ gesetzt: %d Metadaten aktualisiert."
+                % (full, changed),
+            )
 
     # ------------------------------------------------------------------
     # Ausführen: Nummerierung

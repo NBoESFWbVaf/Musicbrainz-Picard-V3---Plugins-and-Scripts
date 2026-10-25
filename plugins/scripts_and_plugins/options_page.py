@@ -38,6 +38,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         "show_cover_info": {"widgets": ["show_cover_info_check"]},
         "genre_list": {"widgets": ["genre_list_edit"]},
         "list_row_spacing": {"widgets": ["list_row_spacing_spin"]},
+        "window_width": {"widgets": ["window_width_spin"]},
     }
 
     def __init__(self, parent=None):
@@ -76,6 +77,14 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.list_row_spacing_spin = QSpinBox(self)
         self.list_row_spacing_spin.setRange(0, 30)
         self.list_row_spacing_spin.setSuffix(" Pixel")
+        self.window_width_spin = QSpinBox(self)
+        self.window_width_spin.setRange(640, 3840)
+        self.window_width_spin.setSuffix(" Pixel")
+        self.window_width_spin.setToolTip(
+            "Breite des Fensters „Scripts & Plugins“ beim Öffnen "
+            "und bei jeder Aktualisierung (Höhe und Position bleiben "
+            "unverändert)"
+        )
 
         form = QFormLayout()
         form.addRow(self.show_disabled_scripts_check)
@@ -87,6 +96,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         form.addRow(self.show_cover_info_check)
         form.addRow("Genre-Liste (eine Genre pro Zeile):", self.genre_list_edit)
         form.addRow("Zusätzlicher Zeilenabstand:", self.list_row_spacing_spin)
+        form.addRow("Fensterbreite:", self.window_width_spin)
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
@@ -122,6 +132,9 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.list_row_spacing_spin.setValue(
             _config_value(self.api.plugin_config, "list_row_spacing", 6)
         )
+        self.window_width_spin.setValue(
+            _config_value(self.api.plugin_config, "window_width", 640)
+        )
 
     def save(self):
         """Widget-Werte in die Plugin-Konfiguration schreiben."""
@@ -149,4 +162,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.api.plugin_config["genre_list"] = self.genre_list_edit.toPlainText()
         self.api.plugin_config["list_row_spacing"] = (
             self.list_row_spacing_spin.value()
+        )
+        self.api.plugin_config["window_width"] = (
+            self.window_width_spin.value()
         )

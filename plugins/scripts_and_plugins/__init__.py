@@ -107,6 +107,13 @@ def enable(api):
         in_profile=True,
         bounds=(0, 30),
     )
+    api.plugin_config.register_option(
+        "window_width",
+        640,
+        title="Fensterbreite (Pixel)",
+        in_profile=True,
+        bounds=(640, 3840),
+    )
     api.register_options_page(ScriptsPluginsOptionsPage)
 
     window = api.tagger.window

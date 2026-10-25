@@ -357,7 +357,8 @@ class ScriptsPluginsWindow(QDialog):
         """Anzeige-Einstellungen aus den Plugin-Optionen anwenden.
 
         Steuert die Sichtbarkeit der Bereichs-Boxen (Scripte, Aktionen,
-        Genre, Nummerierung, Datum) und den Zeilenabstand. Läuft bei jeder Aktualisierung
+        Genre, Nummerierung, Datum), den Zeilenabstand und die
+        Fensterbreite. Läuft bei jeder Aktualisierung
         (Öffnen, Toolbar-Klick, „Aktualisieren“) sowie live beim Ändern
         der Optionen über das setting_changed-Signal der
         Plugin-Konfiguration.
@@ -384,6 +385,24 @@ class ScriptsPluginsWindow(QDialog):
         self.date_box.setVisible(
             _config_value(self.api.plugin_config, "show_date", True)
         )
+        # Fensterbreite aus der Option „window_width“ anwenden (nur
+        # die Breite — Höhe und Position bleiben unverändert). Ein
+        # maximiertes Fenster wird nicht angetastet, damit die
+        # Einstellung nicht die Maximierung aufhebt. Manuelle Größen-
+        # änderungen am Fenster gelten bis zur nächsten
+        # Aktualisierung bzw. bis zum nächsten Öffnen.
+        width = _config_value(self.api.plugin_config, "window_width", 640)
+        try:
+            width = int(width)
+        except (TypeError, ValueError):
+            width = 640
+        width = max(width, self.minimumWidth())
+        if (
+            not self.isMaximized()
+            and not self.isFullScreen()
+            and width != self.width()
+        ):
+            self.resize(width, self.height())
 
     def _on_plugin_setting_changed(self, name, old_value, new_value):
         """Live-Reaktion auf Optionsänderungen (z. B. im Optionsdialog)."""
@@ -393,6 +412,7 @@ class ScriptsPluginsWindow(QDialog):
             "show_genre",
             "show_numbering",
             "show_date",
+            "window_width",
             "genre_list",
             "list_row_spacing",
             "show_disabled_scripts",

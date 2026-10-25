@@ -112,7 +112,7 @@ def enable(api):
         640,
         title="Fensterbreite (Pixel)",
         in_profile=True,
-        bounds=(640, 3840),
+        bounds=(200, 3840),
     )
     api.register_options_page(ScriptsPluginsOptionsPage)
 

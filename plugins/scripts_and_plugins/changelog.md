@@ -1,12 +1,35 @@
 # Changelog
 
-Alle nennenswerten Änderungen am Plugin „Scripts & Plugins“ werden in dieser
+Alle nennenswerten Änderungen am Plugin „Picard Extender“ werden in dieser
 Datei protokolliert. Das Format orientiert sich an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), die Versionierung
 folgt Semantic Versioning. Ältere Einträge sind ohne Datum; ab 0.5.0 wird
 jede Version datiert.
 
 ## [Unveröffentlicht]
+
+## [0.24.0] – 2026-10-25
+### Added
+- Hilfstexte: Neuer quadratischer „?“-Button unten rechts in der
+  Schaltflächenzeile des Fensters. Er öffnet das Fenster
+  „Hilfstexte — Picard Extender“ mit kurzen Stichpunkten zu allen
+  Bereichen (Tagging-Scripte, Plugin-Aktionen, Genre, Nummerierung,
+  Datum, Statuszeile, Optionen, Speichern); Texte als HTML in einem
+  read-only QTextBrowser, „Schließen“-Button, Singleton-Fenster
+  (Klasse `ExtenderHelpDialog`, Konstante `_HELP_TEXT` in window.py).
+- Programmatisch gezeichnetes Stecker-Icon (`make_extender_icon()`
+  in helpers.py, Größen 16–64 Pixel) für den Toolbar-Button —
+  keine externe Icon-Datei nötig.
+
+### Changed
+- Komplette Umbenennung in „Picard Extender“: MANIFEST-Name,
+  Toolbar-Button („Extender“), Fenster-Titel, Optionsseite
+  („Optionen → Plugins → Picard Extender“), Klassen
+  (`ExtenderWindow`, `ExtenderOptionsPage`), Log-Name und der
+  Plugin-Ordner (jetzt `picard_extender`). Die Plugin-UUID ist
+  unverändert — alle Einstellungen bleiben erhalten. Den alten
+  Ordner `scripts_and_plugins` entfernen, damit das Plugin nicht
+  doppelt in der Pluginliste erscheint.
 
 ## [0.23.0] – 2026-10-25
 ### Changed

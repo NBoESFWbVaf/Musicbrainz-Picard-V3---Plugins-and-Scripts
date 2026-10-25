@@ -130,9 +130,9 @@ def enable(api):
 
     _toolbar = QToolBar("Picard Extender", window)
     _toolbar.setObjectName("picard_extender_toolbar")
-    # Beschriftung neben dem Icon anzeigen statt Icon-only.
+    # Beschriftung unter dem Icon anzeigen statt Icon-only.
     _toolbar.setToolButtonStyle(
-        Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        Qt.ToolButtonStyle.ToolButtonTextUnderIcon
     )
     _toolbar.addAction(_action)
     window.addToolBar(_toolbar)

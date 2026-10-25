@@ -8,6 +8,24 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.19.0] – 2026-10-25
+### Added
+- Neuer Bereich „Datum“ unterhalb der Nummerierung: Ein Eingabefeld
+  nimmt ein Datum im ISO-Format jjjj-mm-tt auf (validiert über
+  `QDate.fromString` plus Roundtrip — nur exakt formatierte, echte
+  Kalenderdaten geben die Schaltfläche „Datum setzen“ frei). Das Jahr
+  (jjjj) wird in die Tags `date` und `originalyear` geschrieben, das
+  vollständige Datum (jjjj-mm-tt) in `releasedate` und `originaldate`
+  — fehlende Tags werden dabei angelegt. Die Anwendung läuft über
+  `_apply_to_metadata()` und gilt damit für Album-, Track-, Datei-
+  und Cluster-Auswahl (Album: alle Tracks plus Album-Metadaten,
+  Cluster: alle Dateien); Album-Änderungen werden wie immer über
+  `Track.update_file_metadata()` in die gematchten Dateien
+  synchronisiert.
+- Neue Option „Datum anzeigen“ (Voreinstellung: an, profilfähig)
+  blendet den Datumsbereich ein bzw. aus — live wie alle anderen
+  Anzeige-Optionen.
+
 ## [0.18.0] – 2026-10-25
 ### Added
 - Nummerierung unterstützt jetzt auch Cluster-Auswahl im

@@ -1,7 +1,7 @@
-"""Einstellungsseite für das Plugin „Scripts & Plugins“.
+"""Einstellungsseite für das Plugin „Picard Extender“.
 
 Die Seite erscheint in den Picard-Optionen unter „Plugins“ und bietet
-die Konfiguration für das Script-und-Plugins-Fenster an.
+die Konfiguration für das Picard-Extender-Fenster an.
 """
 
 from typing import ClassVar
@@ -19,11 +19,11 @@ from picard.plugin3.api import OptionsPage, PageOptionConfigs, t_
 from .helpers import _config_value
 
 
-class ScriptsPluginsOptionsPage(OptionsPage):
-    """Optionen → Plugins → Scripts & Plugins."""
+class ExtenderOptionsPage(OptionsPage):
+    """Optionen → Plugins → Picard Extender."""
 
-    NAME = "scripts_and_plugins"
-    TITLE = t_("options.page_title", "Scripts & Plugins")
+    NAME = "picard_extender"
+    TITLE = t_("options.page_title", "Picard Extender")
     PARENT = "plugins"
 
     # Widget-Zuordnung für die Profil-Hervorhebung: pro Option die
@@ -81,7 +81,7 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         self.window_width_spin.setRange(200, 3840)
         self.window_width_spin.setSuffix(" Pixel")
         self.window_width_spin.setToolTip(
-            "Breite des Fensters „Scripts & Plugins“ beim Öffnen "
+            "Breite des Fensters „Picard Extender“ beim Öffnen "
             "und bei jeder Aktualisierung (Höhe und Position bleiben "
             "unverändert)"
         )

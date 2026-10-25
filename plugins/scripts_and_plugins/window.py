@@ -176,7 +176,8 @@ class ScriptsPluginsWindow(QDialog):
         actions_footer.addWidget(self.run_action_button)
         actions_layout.addLayout(actions_footer)
 
-        self._lists_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        # Listen untereinander: Script-Liste oben, Plugin-Aktionen darunter
+        self._lists_splitter = QSplitter(Qt.Orientation.Vertical, self)
         self._lists_splitter.addWidget(self.scripts_box)
         self._lists_splitter.addWidget(self.actions_box)
         self._lists_splitter.setStretchFactor(0, 1)
@@ -216,7 +217,7 @@ class ScriptsPluginsWindow(QDialog):
         self.genre_box.setMaximumHeight(self.genre_box.sizeHint().height())
 
         # --- Nummerierung ---
-        # Eigener Bereich neben der Genre-Auswahl (analog zu Script-
+        # Eigener Bereich unter der Genre-Auswahl (analog zu Script-
         # und Action-Liste als eigener Kasten) mit den beiden
         # Nummerierungs-Schaltflächen.
         self.numbering_box = QGroupBox("Nummerierung", self)
@@ -230,9 +231,9 @@ class ScriptsPluginsWindow(QDialog):
             self.numbering_box.sizeHint().height()
         )
 
-        # Genre-Auswahl und Nummerierung nebeneinander
+        # Genre-Auswahl und Nummerierung untereinander
         self.genre_numbering_splitter = QSplitter(
-            Qt.Orientation.Horizontal, self
+            Qt.Orientation.Vertical, self
         )
         self.genre_numbering_splitter.addWidget(self.genre_box)
         self.genre_numbering_splitter.addWidget(self.numbering_box)
@@ -267,7 +268,7 @@ class ScriptsPluginsWindow(QDialog):
         main_splitter.setCollapsible(0, False)
         main_splitter.setCollapsible(1, False)
         main_splitter.setCollapsible(2, False)
-        main_splitter.setSizes([520, 100, 140])
+        main_splitter.setSizes([520, 210, 140])
 
         layout = QVBoxLayout(self)
         layout.addWidget(main_splitter, 1)
@@ -516,41 +517,41 @@ class ScriptsPluginsWindow(QDialog):
         return count
 
     def _adjust_list_heights(self):
-        """Beide Listen maximal so hoch wie ihr Inhalt — und der gesamte
-        Listenbereich (Boxen inkl. Titel und Fußzeilen) ebenfalls.
+        """Beide Listen maximal so hoch wie ihr Inhalt — und die Boxen
+        (inkl. Titel und Fußzeilen) ebenfalls.
 
-        Die gemeinsame Höhe orientiert sich an der größeren der beiden
-        Listen: Der letzte Eintrag des größeren Fensters begrenzt beide
-        Boxen — unterhalb der Einträge bleibt kein leerer Raum, die
-        Elemente verteilen sich also nicht beim Vergrößern des Fensters.
-        Der Listenbereich bekommt dafür eine Höchsthöhe (Größen-Schätzung
-        der größeren Box, getragen von CompactListWidget.sizeHint()),
-        sodass ihm der vertikale Splitter keinen Leerraum zuweisen kann;
+        Da die Listen untereinander gestapelt sind, bekommt jede Liste
+        ihre eigene Höchsthöhe nach ihrem Inhalt: Der letzte Eintrag
+        begrenzt die jeweilige Box — unterhalb der Einträge bleibt kein
+        leerer Raum, die Elemente verteilen sich also nicht beim
+        Vergrößern des Fensters. Jede Box erhält zusätzlich die
+        Höchsthöhe ihrer sizeHint (wie Genre- und Nummerierungs-Box),
+        und der Listenbereich die Summe beider Boxen, sodass der
+        vertikale Splitter ihm keinen Leerraum zuweisen kann;
         überschüssiger Platz fällt dem Protokoll zu. Läuft nach jedem
         Listen-Neuaufbau, also auch nach Options-Änderungen, da
         sizeHintForRow() den Zeilenabstand des Delegates berücksichtigt.
         """
-        heights = []
-        for list_widget in (self.script_list, self.action_list):
+        for list_widget, box in (
+            (self.script_list, self.scripts_box),
+            (self.action_list, self.actions_box),
+        ):
             count = list_widget.count()
             if count == 0:
-                heights.append(list_widget.sizeHintForRow(0))
+                content_height = list_widget.sizeHintForRow(0)
             else:
-                heights.append(
-                    sum(list_widget.sizeHintForRow(i) for i in range(count))
+                content_height = sum(
+                    list_widget.sizeHintForRow(i) for i in range(count)
                 )
-        content_height = max(heights)
-        for list_widget in (self.script_list, self.action_list):
             list_widget.setMaximumHeight(
                 content_height + 2 * list_widget.frameWidth()
             )
-        # Benötigte Höhe des Listenbereichs: die größere der beiden
-        # Boxen (inkl. Titel, Ränder, Fußzeile) begrenzt den Splitter.
+            box.setMaximumHeight(box.sizeHint().height())
+        # Benötigte Höhe des Listenbereichs: Summe der beiden
+        # Boxen (inkl. Titel, Ränder, Fußzeilen) begrenzt den Splitter.
         self._lists_splitter.setMaximumHeight(
-            max(
-                self.scripts_box.sizeHint().height(),
-                self.actions_box.sizeHint().height(),
-            )
+            self.scripts_box.sizeHint().height()
+            + self.actions_box.sizeHint().height()
         )
 
     def refresh(self):

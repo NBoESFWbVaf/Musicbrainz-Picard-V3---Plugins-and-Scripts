@@ -8,6 +8,30 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.21.0] – 2026-10-25
+### Changed
+- Die Mindestbreite des Fensters liegt jetzt bei 200 Pixeln (bisher
+  640): Der Dialog lässt sich deutlich schmaler ziehen, und die
+  Option „Fensterbreite“ erlaubt Werte von 200–3840 Pixel (Spinbox
+  und Options-Bounds entsprechend angepasst; Voreinstellung bleibt
+  640).
+
+### Fixed
+- Das Clusterfenster aktualisierte sich nach Genre-, Script- oder
+  Datums-Änderungen an einem Cluster nicht automatisch:
+  `Cluster.update()` erneuert in Picard 3.0.2 nur die Cluster-Zeile
+  selbst (Gesamtzahl, aggregierte Tags), nicht die Datei-Einträge
+  darunter (verifiziert gegen picard/cluster.py). Geänderte
+  Cluster-Dateien werden deshalb jetzt einzeln über `file.update()`
+  aktualisiert (`Item.update` → `ui_item.update()`, verifiziert
+  gegen picard/item.py) — neuer Helfer `_update_ui_item()` in
+  window.py, verwendet in `_apply_to_metadata()` (Genre, Scripte,
+  Datum; betrifft auch die Cluster-Nummerierung). Bei Alben und
+  Tracks erledigt `Track.update_file_metadata()` die
+  Aktualisierung von Datei und Track bereits selbst
+  (`file.update(signal=False)` plus `self.update()`, verifiziert
+  gegen picard/track.py) — dort bleibt alles unverändert.
+
 ## [0.20.0] – 2026-10-25
 ### Added
 - Neue Option „Fensterbreite“ (640–3840 Pixel, Voreinstellung 640 —

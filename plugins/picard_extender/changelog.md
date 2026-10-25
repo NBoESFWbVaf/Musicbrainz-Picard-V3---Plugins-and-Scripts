@@ -8,6 +8,11 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.24.1] – 2026-10-25
+### Changed
+- Toolbar-Beschriftung „Extender“ steht jetzt unter dem Icon statt
+  daneben (`Qt.ToolButtonStyle.ToolButtonTextUnderIcon`).
+
 ## [0.24.0] – 2026-10-25
 ### Added
 - Hilfstexte: Neuer quadratischer „?“-Button unten rechts in der

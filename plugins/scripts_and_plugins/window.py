@@ -566,8 +566,19 @@ class ScriptsPluginsWindow(QDialog):
         )
 
     def refresh(self):
-        """Vollständige Aktualisierung: Einstellungen, Listen, Statuszeile."""
+        """Vollständige Aktualisierung: Einstellungen, Listen, Statuszeile,
+        Datums-Voreinstellung."""
         self._apply_display_settings()
+        # Datumsfeld ohne Nutzer-Änderung mit dem aktuellen Datum
+        # vorbelegen: isModified() ist nach programmatischem setText()
+        # False, erst eine Nutzereingabe setzt es True. So steht nach
+        # Mitternacht bzw. beim erneuten Öffnen wieder das aktuelle
+        # Datum im Feld, während eine selbst getippte Eingabe erhalten
+        # bleibt.
+        if not self.date_edit.isModified():
+            self.date_edit.setText(
+                QDate.currentDate().toString("yyyy-MM-dd")
+            )
         objs = self._selected_objects()
         self._last_selection_signature = self._selection_signature(objs)
         self._needed_points = set()

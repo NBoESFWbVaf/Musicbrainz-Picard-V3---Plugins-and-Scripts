@@ -8,6 +8,15 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.15.0] – 2026-10-25
+### Changed
+- Fenster umgestaltet: „Plugin-Aktionen“ steht jetzt unter
+  „Tagging-Scripte“ und „Nummerierung“ unter „Genre hinzufügen“
+  (bisher jeweils nebeneinander). Im gestapelten Layout bekommt jede
+  Liste ihre eigene Höchsthöhe nach ihrem Inhalt statt der bisherigen
+  gemeinsamen Höhe nach der größeren Liste; Genre- und
+  Nummerierungs-Box bleiben wie bisher kompakt mit fester Höhe.
+
 ## [0.14.2] – 2026-10-24
 ### Fixed
 - Die Nummerierungs-Schaltflächen blieben nach dem Öffnen des Fensters

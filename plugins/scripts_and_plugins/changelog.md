@@ -8,6 +8,16 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.23.0] – 2026-10-25
+### Changed
+- Nummerierung schreibt `tracknumber` jetzt mit führenden Nullen,
+  so breit wie die größte Nummer der jeweiligen Disc, mindestens
+  zweistellig: 1–99 nummerierte Einträge je Disc → 01, 02, … 99;
+  100–999 → 001, 002, … 999; und so weiter. Gilt für beide
+  Schaltflächen („Nummerieren“ und „Mischen“) und beide Pfade —
+  Album-Tracks und Cluster-Dateien. `totaltracks` bleibt die
+  ungefüllte Anzahl der nummerierten Einträge je Disc.
+
 ## [0.22.0] – 2026-10-25
 ### Changed
 - Buttonbeschriftungen deutlich gekürzt — die ausführlichen

@@ -116,15 +116,23 @@ class ScriptsPluginsWindow(QDialog):
         # --- Schaltflächen (früh erstellt, da sie innerhalb der
         #     Bereichs-Boxen platziert werden) ---
         self.refresh_button = QPushButton("Aktualisieren", self)
-        self.run_script_button = QPushButton("Gewähltes Script ausführen", self)
-        self.run_all_button = QPushButton("Alle aktiven Scripte ausführen", self)
+        self.run_script_button = QPushButton("Starten", self)
+        self.run_script_button.setToolTip(
+            "Führt das in der Liste gewählte Tagging-Script auf der "
+            "Auswahl aus (Doppelklick auf den Eintrag macht dasselbe)"
+        )
+        self.run_all_button = QPushButton("Alle", self)
         self.run_all_button.setToolTip(
             "Führt alle aktivierten Tagging-Scripte in "
             "Positions-Reihenfolge nacheinander auf der Auswahl aus"
         )
-        self.run_action_button = QPushButton("Aktion ausführen", self)
-        self.overwrite_genres_button = QPushButton("Alle Genre überschreiben", self)
-        self.append_genre_button = QPushButton("Dieses Genre anhängen", self)
+        self.run_action_button = QPushButton("Starten", self)
+        self.run_action_button.setToolTip(
+            "Führt die in der Liste gewählte Plugin-Aktion auf der "
+            "Auswahl aus (Doppelklick auf den Eintrag macht dasselbe)"
+        )
+        self.overwrite_genres_button = QPushButton("Ersetzen", self)
+        self.append_genre_button = QPushButton("Hinzufügen", self)
         self.overwrite_genres_button.setToolTip(
             "Ersetzt vorhandene Genre-Werte auf der Auswahl durch die "
             "gewählte Genre"
@@ -133,14 +141,14 @@ class ScriptsPluginsWindow(QDialog):
             "Hängt die gewählte Genre an vorhandene Genre-Werte an "
             "(ohne Dubletten)"
         )
-        self.renumber_button = QPushButton("Tracks neu nummerieren", self)
+        self.renumber_button = QPushButton("Nummerieren", self)
         self.renumber_button.setToolTip(
             "Nummeriert die Tracks des gewählten Albums (oder die "
             "Dateien eines gewählten Clusters) pro Disc neu: lückenlos "
             "ab 1; bei Alben nur Tracks mit vorhandener Datei; "
             "totaltracks = Anzahl der nummerierten Einträge je Disc"
         )
-        self.mix_button = QPushButton("Tracks gemixt nummerieren", self)
+        self.mix_button = QPushButton("Mischen", self)
         self.mix_button.setToolTip(
             "Nummeriert die Tracks des gewählten Albums (oder die "
             "Dateien eines gewählten Clusters) pro Disc zufällig neu — "
@@ -148,7 +156,7 @@ class ScriptsPluginsWindow(QDialog):
             "(soweit vermeidbar); bei Alben nur Tracks mit vorhandener "
             "Datei, totaltracks = Anzahl der nummerierten Einträge je Disc"
         )
-        self.apply_date_button = QPushButton("Datum setzen", self)
+        self.apply_date_button = QPushButton("Übernehmen", self)
         self.apply_date_button.setToolTip(
             "Setzt das Datum als Tags auf die Auswahl: Jahr (jjjj) in "
             "„date“ und „originalyear“, vollständiges Datum (jjjj-mm-tt) "
@@ -172,7 +180,7 @@ class ScriptsPluginsWindow(QDialog):
         scripts_layout = QVBoxLayout(self.scripts_box)
         scripts_layout.addWidget(self.script_list)
         # Beide Ausführungs-Schaltflächen direkt unter der Script-Liste
-        # (rechtsbündig, „Alle aktiven Scripte ausführen“ rechts daneben)
+        # (rechtsbündig, „Alle“ rechts daneben)
         scripts_footer = QHBoxLayout()
         scripts_footer.addStretch(1)
         scripts_footer.addWidget(self.run_script_button)
@@ -187,7 +195,7 @@ class ScriptsPluginsWindow(QDialog):
         self.actions_box = QGroupBox("Plugin-Aktionen", self)
         actions_layout = QVBoxLayout(self.actions_box)
         actions_layout.addWidget(self.action_list)
-        # „Aktion ausführen“ direkt unter der Action-Liste
+        # „Starten“ direkt unter der Action-Liste
         actions_footer = QHBoxLayout()
         actions_footer.addStretch(1)
         actions_footer.addWidget(self.run_action_button)
@@ -846,12 +854,12 @@ class ScriptsPluginsWindow(QDialog):
             )
 
     def _overwrite_genres(self, _checked=False):
-        """„Alle Genre überschreiben“: Die gewählte Genre ersetzt alle
+        """„Ersetzen“: Die gewählte Genre ersetzt alle
         vorhandenen Genre-Werte der Auswahl."""
         self._apply_genre(self.genre_combo.currentText(), append=False)
 
     def _append_genre(self, _checked=False):
-        """„Dieses Genre anhängen“: Die gewählte Genre wird an vorhandene
+        """„Hinzufügen“: Die gewählte Genre wird an vorhandene
         Genre-Werte angehängt (ohne Dubletten)."""
         self._apply_genre(self.genre_combo.currentText(), append=True)
 
@@ -879,11 +887,11 @@ class ScriptsPluginsWindow(QDialog):
         return date
 
     def _update_date_button(self):
-        """„Datum setzen“ nur bei gültigem Datum freigeben."""
+        """„Übernehmen“ nur bei gültigem Datum freigeben."""
         self.apply_date_button.setEnabled(self._parse_date() is not None)
 
     def _apply_selected_date(self, _checked=False):
-        """„Datum setzen“: Das Datum aus dem Eingabefeld auf die
+        """„Übernehmen“: Das Datum aus dem Eingabefeld auf die
         Auswahl anwenden.
 
         Das Jahr (jjjj) landet in „date“ und „originalyear“, das
@@ -947,13 +955,13 @@ class ScriptsPluginsWindow(QDialog):
     # Ausführen: Nummerierung
 
     def _renumber_tracks(self, _checked=False):
-        """„Tracks neu nummerieren“: Pro Disc lückenlos, in der Track-
+        """„Nummerieren“: Pro Disc lückenlos, in der Track-
         bzw. Cluster-Datei-Reihenfolge (Details siehe
         _renumber_selected)."""
         self._renumber_selected("neu", None)
 
     def _renumber_tracks_mixed(self, _checked=False):
-        """„Tracks gemixt nummerieren“: Pro Disc zufällige Reihenfolge,
+        """„Mischen“: Pro Disc zufällige Reihenfolge,
         ohne denselben Interpreten zweimal hintereinander (Details
         siehe _renumber_selected und _shuffled_no_repeat)."""
         self._renumber_selected(

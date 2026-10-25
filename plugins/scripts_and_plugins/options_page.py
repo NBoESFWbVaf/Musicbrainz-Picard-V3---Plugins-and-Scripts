@@ -32,7 +32,6 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         "show_disabled_scripts": {"widgets": ["show_disabled_scripts_check"]},
         "show_scripts_list": {"widgets": ["show_scripts_list_check"]},
         "show_actions_list": {"widgets": ["show_actions_list_check"]},
-        "show_log": {"widgets": ["show_log_check"]},
         "show_genre": {"widgets": ["show_genre_check"]},
         "show_numbering": {"widgets": ["show_numbering_check"]},
         "show_cover_info": {"widgets": ["show_cover_info_check"]},
@@ -51,9 +50,6 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.show_actions_list_check = QCheckBox(
             "Plugin-Aktionen anzeigen", self
-        )
-        self.show_log_check = QCheckBox(
-            "Protokoll anzeigen", self
         )
         self.show_genre_check = QCheckBox(
             "Genre-Auswahl anzeigen", self
@@ -81,7 +77,6 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         form.addRow(self.show_disabled_scripts_check)
         form.addRow(self.show_scripts_list_check)
         form.addRow(self.show_actions_list_check)
-        form.addRow(self.show_log_check)
         form.addRow(self.show_genre_check)
         form.addRow(self.show_numbering_check)
         form.addRow(self.show_cover_info_check)
@@ -102,9 +97,6 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.show_actions_list_check.setChecked(
             _config_value(self.api.plugin_config, "show_actions_list", True)
-        )
-        self.show_log_check.setChecked(
-            _config_value(self.api.plugin_config, "show_log", True)
         )
         self.show_genre_check.setChecked(
             _config_value(self.api.plugin_config, "show_genre", True)
@@ -133,9 +125,6 @@ class ScriptsPluginsOptionsPage(OptionsPage):
         )
         self.api.plugin_config["show_actions_list"] = (
             self.show_actions_list_check.isChecked()
-        )
-        self.api.plugin_config["show_log"] = (
-            self.show_log_check.isChecked()
         )
         self.api.plugin_config["show_genre"] = (
             self.show_genre_check.isChecked()

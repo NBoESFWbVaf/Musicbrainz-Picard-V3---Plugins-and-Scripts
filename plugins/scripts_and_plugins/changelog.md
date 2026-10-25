@@ -8,6 +8,19 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.16.0] – 2026-10-25
+### Removed
+- Protokollfenster komplett entfernt: Bereich mit Textfeld,
+  Schaltfläche „Leeren“ und Start-/Abschlussmeldungen sowie die
+  Option „Protokoll anzeigen“ (Checkbox in den Plugin-Optionen)
+  sind entfallen.
+### Changed
+- Das Ergebnis der letzten Ausführung erscheint jetzt als
+  einzeilige Meldung mit „✓“/„✗“ in der Statuszeile; Details und
+  Tracebacks stehen unverändert im Picard-Log. Überschüssiger
+  Platz beim Vergrößern des Fensters bleibt als Leerraum über der
+  Schaltflächenzeile.
+
 ## [0.15.0] – 2026-10-25
 ### Changed
 - Fenster umgestaltet: „Plugin-Aktionen“ steht jetzt unter

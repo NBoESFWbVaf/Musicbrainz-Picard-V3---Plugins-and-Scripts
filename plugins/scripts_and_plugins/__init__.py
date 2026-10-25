@@ -83,6 +83,12 @@ def enable(api):
         in_profile=True,
     )
     api.plugin_config.register_option(
+        "show_date",
+        True,
+        title="Datum anzeigen",
+        in_profile=True,
+    )
+    api.plugin_config.register_option(
         "show_cover_info",
         True,
         title="Cover-Informationen anzeigen",

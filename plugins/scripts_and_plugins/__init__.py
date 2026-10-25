@@ -1,7 +1,8 @@
-"""Scripts & Plugins — Einstiegspunkt des Plugins
+"""Picard Extender — Einstiegspunkt des Plugins
 
-Fügt der Picard-Symbolleiste eine eigene Schaltfläche hinzu, über die
-sich das Fenster "Scripts & Plugins" öffnen lässt. Das Fenster mit
+Fügt der Picard-Symbolleiste eine eigene Schaltfläche „Extender“
+(mit gezeichnetem Stecker-Icon) hinzu, über die sich das Fenster
+"Picard Extender" öffnen lässt. Das Fenster mit
 seinen Listen und der Ausführungslogik liegt in
 window.py, allgemeine Hilfsfunktionen und Konstanten in helpers.py,
 die Einstellungsseite in options_page.py. Die Cover-Informationen im
@@ -14,9 +15,9 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QToolBar
 
 from .coverinfo import disable_cover_info, enable_cover_info
-from .helpers import _config_value, _DEFAULT_GENRE_LIST
-from .options_page import ScriptsPluginsOptionsPage
-from .window import ScriptsPluginsWindow
+from .helpers import _config_value, _DEFAULT_GENRE_LIST, make_extender_icon
+from .options_page import ExtenderOptionsPage
+from .window import ExtenderWindow
 
 # Fenster und Widgets global halten, damit Qt sie nicht wegräumt
 # und disable() sie sauber entfernen kann.
@@ -32,11 +33,11 @@ _api = None
 _cover_info_setting_handler = None
 
 
-def show_scripts_plugins_window(api, parent):
+def show_extender_window(api, parent):
     """Zeigt das Fenster an (Singleton: wiederverwendet die Instanz)."""
     global _window
     if _window is None:
-        _window = ScriptsPluginsWindow(api, parent)
+        _window = ExtenderWindow(api, parent)
     _window.show()
     _window.raise_()
     _window.activateWindow()
@@ -114,7 +115,7 @@ def enable(api):
         in_profile=True,
         bounds=(200, 3840),
     )
-    api.register_options_page(ScriptsPluginsOptionsPage)
+    api.register_options_page(ExtenderOptionsPage)
 
     window = api.tagger.window
     if window is None:
@@ -122,12 +123,13 @@ def enable(api):
         return
 
     # --- Schaltfläche in einer eigenen Symbolleiste (Internals) ---
-    _action = QAction("Scripts & Plugins", window)
-    _action.setToolTip("Öffnet das Fenster „Scripts & Plugins“")
-    _action.triggered.connect(lambda: show_scripts_plugins_window(api, window))
+    _action = QAction("Extender", window)
+    _action.setToolTip("Öffnet das Fenster „Picard Extender“")
+    _action.setIcon(make_extender_icon())
+    _action.triggered.connect(lambda: show_extender_window(api, window))
 
-    _toolbar = QToolBar("Scripts & Plugins", window)
-    _toolbar.setObjectName("scripts_and_plugins_toolbar")
+    _toolbar = QToolBar("Picard Extender", window)
+    _toolbar.setObjectName("picard_extender_toolbar")
     # Beschriftung neben dem Icon anzeigen statt Icon-only.
     _toolbar.setToolButtonStyle(
         Qt.ToolButtonStyle.ToolButtonTextBesideIcon

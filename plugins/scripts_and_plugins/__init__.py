@@ -2,7 +2,7 @@
 
 Fügt der Picard-Symbolleiste eine eigene Schaltfläche hinzu, über die
 sich das Fenster "Scripts & Plugins" öffnen lässt. Das Fenster mit
-seinen Listen, dem Protokoll und der Ausführungslogik liegt in
+seinen Listen und der Ausführungslogik liegt in
 window.py, allgemeine Hilfsfunktionen und Konstanten in helpers.py,
 die Einstellungsseite in options_page.py. Die Cover-Informationen im
 Cover-Panel des Hauptfensters (Modul coverinfo.py) werden hier mit
@@ -68,12 +68,6 @@ def enable(api):
         "show_actions_list",
         True,
         title="Plugin-Aktionen anzeigen",
-        in_profile=True,
-    )
-    api.plugin_config.register_option(
-        "show_log",
-        True,
-        title="Protokoll anzeigen",
         in_profile=True,
     )
     api.plugin_config.register_option(

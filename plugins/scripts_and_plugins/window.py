@@ -132,17 +132,18 @@ class ScriptsPluginsWindow(QDialog):
         )
         self.renumber_button = QPushButton("Tracks neu nummerieren", self)
         self.renumber_button.setToolTip(
-            "Nummeriert die Tracks des gewählten Albums pro Disc neu: "
-            "nur Tracks mit vorhandener Datei, lückenlos ab 1; "
-            "totaltracks = Anzahl der Tracks mit Datei je Disc"
+            "Nummeriert die Tracks des gewählten Albums (oder die "
+            "Dateien eines gewählten Clusters) pro Disc neu: lückenlos "
+            "ab 1; bei Alben nur Tracks mit vorhandener Datei; "
+            "totaltracks = Anzahl der nummerierten Einträge je Disc"
         )
         self.mix_button = QPushButton("Tracks gemixt nummerieren", self)
         self.mix_button.setToolTip(
-            "Nummeriert die Tracks des gewählten Albums pro Disc "
-            "zufällig neu — derselbe Interpret folgt nie unmittelbar "
-            "auf sich selbst (soweit vermeidbar); nur Tracks mit "
-            "vorhandener Datei, totaltracks = Anzahl der Tracks mit "
-            "Datei je Disc"
+            "Nummeriert die Tracks des gewählten Albums (oder die "
+            "Dateien eines gewählten Clusters) pro Disc zufällig neu — "
+            "derselbe Interpret folgt nie unmittelbar auf sich selbst "
+            "(soweit vermeidbar); bei Alben nur Tracks mit vorhandener "
+            "Datei, totaltracks = Anzahl der nummerierten Einträge je Disc"
         )
         self.run_script_button.setEnabled(False)
         self.run_action_button.setEnabled(False)
@@ -404,9 +405,9 @@ class ScriptsPluginsWindow(QDialog):
         # muss hier gesetzt werden, weil dieser Pfad die Live-
         # Verfolgung übernimmt und refresh() nur beim Öffnen bzw.
         # Klick läuft.
-        album_selected = any(isinstance(obj, Album) for obj in objs)
-        self.renumber_button.setEnabled(album_selected)
-        self.mix_button.setEnabled(album_selected)
+        can_renumber = any(isinstance(obj, (Album, Cluster)) for obj in objs)
+        self.renumber_button.setEnabled(can_renumber)
+        self.mix_button.setEnabled(can_renumber)
         needed = set()
         for obj in objs:
             needed.update(_points_for_object(obj))
@@ -537,10 +538,10 @@ class ScriptsPluginsWindow(QDialog):
         num_scripts = self._populate_scripts()
         num_actions = self._populate_actions(objs)
         self._populate_genre_combo()
-        # Nummerierung nur bei Album-Auswahl anbieten
-        album_selected = any(isinstance(obj, Album) for obj in objs)
-        self.renumber_button.setEnabled(album_selected)
-        self.mix_button.setEnabled(album_selected)
+        # Nummerierung nur bei Album- oder Cluster-Auswahl anbieten
+        can_renumber = any(isinstance(obj, (Album, Cluster)) for obj in objs)
+        self.renumber_button.setEnabled(can_renumber)
+        self.mix_button.setEnabled(can_renumber)
         self._adjust_list_heights()
         self._set_status(
             "Auswahl im Hauptfenster: %d Objekt(e) · %d Script(e) · %d Aktion(en)"
@@ -768,20 +769,21 @@ class ScriptsPluginsWindow(QDialog):
 
     def _renumber_tracks(self, _checked=False):
         """„Tracks neu nummerieren“: Pro Disc lückenlos, in der Track-
-        Reihenfolge des Albums (Details siehe _renumber_selected_albums)."""
-        self._renumber_selected_albums("neu", None)
+        bzw. Cluster-Datei-Reihenfolge (Details siehe
+        _renumber_selected)."""
+        self._renumber_selected("neu", None)
 
     def _renumber_tracks_mixed(self, _checked=False):
         """„Tracks gemixt nummerieren“: Pro Disc zufällige Reihenfolge,
         ohne denselben Interpreten zweimal hintereinander (Details
-        siehe _renumber_selected_albums und _shuffled_no_repeat)."""
-        self._renumber_selected_albums(
+        siehe _renumber_selected und _shuffled_no_repeat)."""
+        self._renumber_selected(
             "gemischt neu", self._shuffled_no_repeat
         )
 
     def _track_artist(self, track):
-        """Interpret eines Tracks aus den Track-Metadaten (leerer String
-        als Fallback)."""
+        """Interpret eines Tracks bzw. einer Datei aus den Metadaten
+        (leerer String als Fallback)."""
         try:
             return (track.metadata.get("artist") or "").strip()
         except Exception:
@@ -790,7 +792,8 @@ class ScriptsPluginsWindow(QDialog):
     def _shuffled_no_repeat(self, tracks):
         """Zufällige Reihenfolge mit Interpreten-Abstand.
 
-        Pro Schritt wird zufällig aus den noch übrigen Tracks gewählt,
+        Pro Schritt wird zufällig aus den noch übrigen Tracks bzw.
+        Dateien gewählt,
         deren Interpret sich vom zuletzt gewählten unterscheidet. Ist
         das nicht möglich (z. B. alle Tracks vom selben Interpret),
         wird aus allen übrigen gewählt — die Nummerierung läuft so
@@ -812,11 +815,11 @@ class ScriptsPluginsWindow(QDialog):
             last_artist = self._track_artist(pick)
         return result
 
-    def _renumber_selected_albums(self, label, order_func):
-        """Gemeinsamer Kern beider Nummerierungs-Schaltflächen: Nur für
-        Album-Auswahl.
+    def _renumber_selected(self, label, order_func):
+        """Gemeinsamer Kern beider Nummerierungs-Schaltflächen: Für
+        Album- und Cluster-Auswahl.
 
-        Pro Disc (Gruppierung nach discnumber der Track-Metadaten,
+        Alben: Pro Disc (Gruppierung nach discnumber der Track-Metadaten,
         Voreinstellung „1“) werden die Tracks mit gematchter Datei
         nummeriert (1, 2, 3, …) — order_func bestimmt die Reihenfolge
         (None = Track-Reihenfolge des Albums, _shuffled_no_repeat =
@@ -827,57 +830,97 @@ class ScriptsPluginsWindow(QDialog):
         (siehe _sync_track_files) in die gematchten Dateien übertragen
         — sichtbar im Datei-Detail (Spalte „Neu“) und mit „Speichern“
         in die Dateien geschrieben.
+
+        Cluster: Dasselbe pro Disc (Gruppierung nach discnumber der
+        Datei-Metadaten), nummeriert werden alle Dateien des Clusters
+        in seiner Datei-Reihenfolge — geschrieben direkt in
+        file.metadata (der von Picard vorgesehene Weg für per-Datei-
+        Änderungen, siehe _apply_to_metadata), danach UI-Update über
+        Cluster.update() (`files` und `update` gegen Picard 3.0.2
+        verifiziert).
         """
         objs = self._selected_objects()
-        albums = [obj for obj in objs if isinstance(obj, Album)]
-        if not albums:
+        targets = [
+            obj
+            for obj in objs
+            if isinstance(obj, (Album, Cluster))
+        ]
+        if not targets:
             self._set_result(
                 False,
-                "Nummerierung braucht eine Album-Auswahl im "
-                "Hauptfenster — bitte zuerst ein Album markieren.",
+                "Nummerierung braucht eine Album- oder Cluster-Auswahl "
+                "im Hauptfenster — bitte zuerst ein Album oder einen "
+                "Cluster markieren.",
             )
             return
         changed = 0
         skipped = 0
         try:
-            for album in albums:
-                # Tracks in Album-Reihenfolge nach Disc gruppieren.
-                # discnumber als Gruppenschlüssel (Rohwert der
-                # Metadaten, z. B. „1“ oder „2/3“); ohne Discnumber
-                # zählen alle Tracks zu Disc „1“.
-                disc_groups = {}
-                disc_order = []
-                for track in album.tracks:
-                    disc = str(
-                        track.metadata.get("discnumber", "1") or "1"
-                    )
-                    if disc not in disc_groups:
-                        disc_groups[disc] = []
-                        disc_order.append(disc)
-                    disc_groups[disc].append(track)
-                for disc in disc_order:
-                    available = [
-                        track
-                        for track in disc_groups[disc]
-                        if getattr(track, "files", None)
-                    ]
-                    ordered = (
-                        order_func(available) if order_func else available
-                    )
-                    total = len(ordered)
-                    for position, track in enumerate(ordered, start=1):
-                        track.metadata["tracknumber"] = str(position)
-                        track.metadata["totaltracks"] = str(total)
-                        self._sync_track_files(track)
-                    skipped += len(disc_groups[disc]) - total
-                    changed += total
-                update = getattr(album, "update", None)
+            for obj in targets:
+                if isinstance(obj, Album):
+                    # Tracks in Album-Reihenfolge nach Disc gruppieren.
+                    # discnumber als Gruppenschlüssel (Rohwert der
+                    # Metadaten, z. B. „1“ oder „2/3“); ohne Discnumber
+                    # zählen alle Tracks zu Disc „1“.
+                    disc_groups = {}
+                    disc_order = []
+                    for track in obj.tracks:
+                        disc = str(
+                            track.metadata.get("discnumber", "1") or "1"
+                        )
+                        if disc not in disc_groups:
+                            disc_groups[disc] = []
+                            disc_order.append(disc)
+                        disc_groups[disc].append(track)
+                    for disc in disc_order:
+                        available = [
+                            track
+                            for track in disc_groups[disc]
+                            if getattr(track, "files", None)
+                        ]
+                        ordered = (
+                            order_func(available) if order_func else available
+                        )
+                        total = len(ordered)
+                        for position, track in enumerate(ordered, start=1):
+                            track.metadata["tracknumber"] = str(position)
+                            track.metadata["totaltracks"] = str(total)
+                            self._sync_track_files(track)
+                        skipped += len(disc_groups[disc]) - total
+                        changed += total
+                else:
+                    # Cluster: Dateien in Cluster-Reihenfolge nach Disc
+                    # gruppieren (analog zum Album-Pfad); nummeriert
+                    # wird direkt auf file.metadata.
+                    disc_groups = {}
+                    disc_order = []
+                    for file in obj.files:
+                        disc = str(
+                            file.metadata.get("discnumber", "1") or "1"
+                        )
+                        if disc not in disc_groups:
+                            disc_groups[disc] = []
+                            disc_order.append(disc)
+                        disc_groups[disc].append(file)
+                    for disc in disc_order:
+                        files_in_disc = disc_groups[disc]
+                        ordered = (
+                            order_func(files_in_disc)
+                            if order_func
+                            else files_in_disc
+                        )
+                        total = len(ordered)
+                        for position, file in enumerate(ordered, start=1):
+                            file.metadata["tracknumber"] = str(position)
+                            file.metadata["totaltracks"] = str(total)
+                        changed += total
+                update = getattr(obj, "update", None)
                 if callable(update):
                     try:
                         update()
                     except Exception:
                         self.api.logger.exception(
-                            "UI-Update für %r fehlgeschlagen", album
+                            "UI-Update für %r fehlgeschlagen", obj
                         )
         except Exception:
             self.api.logger.exception(
@@ -892,15 +935,15 @@ class ScriptsPluginsWindow(QDialog):
         if changed:
             self._set_result(
                 True,
-                "Nummerierung: %d Track(s) mit Datei %s nummeriert, "
+                "Nummerierung: %d Track(s)/Datei(en) %s nummeriert, "
                 "%d Track(s) ohne Datei übersprungen."
                 % (changed, label, skipped),
             )
         else:
             self._set_result(
                 False,
-                "Nummerierung: keine Tracks mit vorhandener Datei "
-                "gefunden.",
+                "Nummerierung: keine nummerierbaren Tracks mit "
+                "Datei bzw. Cluster-Dateien gefunden.",
             )
 
     def _run_selected_script(self, item=None):

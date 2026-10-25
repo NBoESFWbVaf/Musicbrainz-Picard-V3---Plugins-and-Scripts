@@ -97,7 +97,7 @@ class ScriptsPluginsWindow(QDialog):
         super().__init__(parent)
         self.api = api
         self.setWindowTitle("Scripts & Plugins")
-        self.setMinimumSize(640, 420)
+        self.setMinimumSize(200, 420)
 
         # Fenster als reguläres Qt-Fenster deklarieren (statt Dialog):
         # Nur mit dem Window-Typ zeigen Windows & die meisten

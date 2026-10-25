@@ -8,6 +8,19 @@ jede Version datiert.
 
 ## [Unveröffentlicht]
 
+## [0.20.0] – 2026-10-25
+### Added
+- Neue Option „Fensterbreite“ (640–3840 Pixel, Voreinstellung 640 —
+  die bisherige Breite) auf der Einstellungsseite: Das Fenster wird
+  beim Öffnen und bei jeder Aktualisierung auf die eingestellte
+  Breite gebracht (`_apply_display_settings`); die Höhe und die
+  Position bleiben unverändert. Eine Änderung der Option wirkt live
+  über das `setting_changed`-Signal, ohne Neustart. Manuelle Größen-
+  änderungen am Fenster gelten weiterhin bis zur nächsten
+  Aktualisierung bzw. bis zum nächsten Öffnen; ein maximiertes oder
+  vollbildiges Fenster wird nicht angetastet, damit die Einstellung
+  die Maximierung nicht aufhebt.
+
 ## [0.19.0] – 2026-10-25
 ### Added
 - Neuer Bereich „Datum“ unterhalb der Nummerierung: Ein Eingabefeld

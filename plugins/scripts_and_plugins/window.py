@@ -97,6 +97,8 @@ class ScriptsPluginsWindow(QDialog):
         super().__init__(parent)
         self.api = api
         self.setWindowTitle("Scripts & Plugins")
+        # Mindestbreite 200 Pixel (Untergrenze der Option
+        # „window_width“), Mindesthöhe 420.
         self.setMinimumSize(200, 420)
 
         # Fenster als reguläres Qt-Fenster deklarieren (statt Dialog):
@@ -352,6 +354,30 @@ class ScriptsPluginsWindow(QDialog):
         """Ergebnis der letzten Ausführung in der Statuszeile festhalten."""
         symbol = "✓" if success else "✗"
         self._status.setText("%s %s" % (symbol, text))
+
+    def _update_ui_item(self, obj):
+        """UI-Eintrag eines Objekts im Hauptfenster aktualisieren.
+
+        Picard 3.0.2: Item.update(signal) erneuert über
+        ui_item.update() die Zeile des Objekts im Baum (verifiziert
+        gegen picard/item.py). Für Cluster ist das entscheidend:
+        Cluster.update() aktualisiert nur die Cluster-Zeile selbst
+        (Gesamtzahl, aggregierte Tags), nicht die Datei-Einträge
+        darunter (verifiziert gegen picard/cluster.py) — geänderte
+        Dateien müssen deshalb einzeln über file.update()
+        aktualisiert werden. Bei Alben und Tracks erledigt
+        Track.update_file_metadata() die Datei- und Track-
+        Aktualisierung bereits selbst (file.update(signal=False)
+        plus self.update(), verifiziert gegen picard/track.py).
+        """
+        update = getattr(obj, "update", None)
+        if callable(update):
+            try:
+                update()
+            except Exception:
+                self.api.logger.exception(
+                    "UI-Update für %r fehlgeschlagen", obj
+                )
 
     def _apply_display_settings(self):
         """Anzeige-Einstellungen aus den Plugin-Optionen anwenden.
@@ -637,7 +663,9 @@ class ScriptsPluginsWindow(QDialog):
 
         Folgt dem Muster aus Album._finalize_loading_album: pro Aufruf
         ein frischer ScriptParser, Auswertung gegen die Track- bzw.
-        Album-Metadaten, danach UI-Update über obj.update(). Gibt
+        Album-Metadaten, danach UI-Update über obj.update() — bei
+        Clustern zusätzlich pro geänderter Datei (Cluster.update()
+        erneuert nur die Cluster-Zeile; siehe _update_ui_item). Gibt
         (geänderte Metadaten, fehlgeschlagene Anwendungen) zurück.
         """
         parser = ScriptParser()
@@ -671,6 +699,7 @@ class ScriptsPluginsWindow(QDialog):
                 for file in obj.files:
                     if apply_func(parser, file.metadata):
                         count += 1
+                        self._update_ui_item(file)
                     else:
                         failed += 1
             else:
@@ -683,14 +712,7 @@ class ScriptsPluginsWindow(QDialog):
                         failed += 1
             if count:
                 changed += count
-                update = getattr(obj, "update", None)
-                if callable(update):
-                    try:
-                        update()
-                    except Exception:
-                        self.api.logger.exception(
-                            "UI-Update für %r fehlgeschlagen", obj
-                        )
+                self._update_ui_item(obj)
         return changed, failed
 
     def _sync_track_files(self, track):
@@ -1070,15 +1092,9 @@ class ScriptsPluginsWindow(QDialog):
                         for position, file in enumerate(ordered, start=1):
                             file.metadata["tracknumber"] = str(position)
                             file.metadata["totaltracks"] = str(total)
+                            self._update_ui_item(file)
                         changed += total
-                update = getattr(obj, "update", None)
-                if callable(update):
-                    try:
-                        update()
-                    except Exception:
-                        self.api.logger.exception(
-                            "UI-Update für %r fehlgeschlagen", obj
-                        )
+                self._update_ui_item(obj)
         except Exception:
             self.api.logger.exception(
                 "Unerwarteter Fehler bei der Nummerierung"
